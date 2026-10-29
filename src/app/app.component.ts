@@ -148,6 +148,14 @@ export class AppComponent implements AfterViewInit {
 
   audioCtx: AudioContext | null = null;
 
+  // Referências do som que está tocando agora, para poder interrompê-lo.
+  private currentAudio: HTMLAudioElement | null = null;
+  private activeOscillators: OscillatorNode[] = [];
+  private stopTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Duração máxima de qualquer som, em milissegundos.
+  private readonly MAX_SOUND_MS = 5000;
+
   animals: Animal[] = [
     { id: 'gato', name: 'Gato', emoji: '🐱', bgClass: 'bg-orange-100', soundType: 'meow', x: 400, y: 350, size: 8, animState: 'idle', message: 'Miau! Miau!' },
     { id: 'cachorro', name: 'Cachorro', emoji: '🐶', bgClass: 'bg-amber-100', soundType: 'bark', x: 850, y: 400, size: 8, animState: 'idle', message: 'Au! Au!' },
@@ -182,12 +190,45 @@ export class AppComponent implements AfterViewInit {
 
   triggerAnimal(animal: Animal, event: Event) {
     event.stopPropagation();
+
+    // Interrompe qualquer som em andamento antes de tocar o novo.
+    this.stopCurrentSound();
+
     this.playAnimalSound(animal);
 
+    // Garante que o som não passe de 5 segundos.
+    this.stopTimer = setTimeout(() => this.stopCurrentSound(), this.MAX_SOUND_MS);
+
+    // Reseta o estado visual dos demais e ativa só o clicado.
+    this.animals.forEach((a) => (a.animState = 'idle'));
     animal.animState = 'active';
-    setTimeout(() => {
-      animal.animState = 'idle';
-    }, 1200);
+  }
+
+  /**
+   * Para o som que estiver tocando: tanto o arquivo de áudio quanto os
+   * osciladores sintetizados da Web Audio API.
+   */
+  stopCurrentSound() {
+    if (this.stopTimer) {
+      clearTimeout(this.stopTimer);
+      this.stopTimer = null;
+    }
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+      this.currentAudio.currentTime = 0;
+      this.currentAudio = null;
+    }
+    this.activeOscillators.forEach((osc) => {
+      try {
+        osc.stop();
+      } catch {
+        // Oscilador já parado; ignora.
+      }
+    });
+    this.activeOscillators = [];
+
+    // Para a animação visual junto com o som.
+    this.animals.forEach((a) => (a.animState = 'idle'));
   }
 
   /**
@@ -196,8 +237,10 @@ export class AppComponent implements AfterViewInit {
    */
   playAnimalSound(animal: Animal) {
     const audio = new Audio(`assets/sounds/${animal.id}.mp3`);
+    this.currentAudio = audio;
     audio.play().catch(() => {
       // Arquivo ausente ou bloqueado: usa o som gerado pela Web Audio API.
+      this.currentAudio = null;
       this.initAudio();
       this.playSound(animal.soundType);
     });
@@ -211,6 +254,7 @@ export class AppComponent implements AfterViewInit {
     if (type === 'meow') {
       // Meow sound simulation using oscillator
       const osc = ctx.createOscillator();
+      this.activeOscillators.push(osc);
       const gain = ctx.createGain();
       osc.type = 'sine';
       osc.frequency.setValueAtTime(450, now);
@@ -228,6 +272,7 @@ export class AppComponent implements AfterViewInit {
     else if (type === 'bark') {
       // Bark sound simulation
       const osc = ctx.createOscillator();
+      this.activeOscillators.push(osc);
       const gain = ctx.createGain();
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(180, now);
@@ -245,6 +290,7 @@ export class AppComponent implements AfterViewInit {
       // Chicken cluck (piping tones)
       for (let i = 0; i < 3; i++) {
         const osc = ctx.createOscillator();
+        this.activeOscillators.push(osc);
         const gain = ctx.createGain();
         osc.type = 'sine';
         const startTime = now + i * 0.12;
@@ -263,6 +309,7 @@ export class AppComponent implements AfterViewInit {
     else if (type === 'moo') {
       // Cow moo (deep low frequency)
       const osc = ctx.createOscillator();
+      this.activeOscillators.push(osc);
       const gain = ctx.createGain();
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(130, now);
@@ -279,6 +326,7 @@ export class AppComponent implements AfterViewInit {
     else if (type === 'croak') {
       // Frog croak (ribit)
       const osc = ctx.createOscillator();
+      this.activeOscillators.push(osc);
       const gain = ctx.createGain();
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(200, now);
@@ -295,6 +343,7 @@ export class AppComponent implements AfterViewInit {
     else if (type === 'roar' || type === 'tiger') {
       // Lion / Tiger roar (low rumble)
       const osc = ctx.createOscillator();
+      this.activeOscillators.push(osc);
       const gain = ctx.createGain();
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(90, now);
@@ -312,6 +361,7 @@ export class AppComponent implements AfterViewInit {
     else if (type === 'trumpet') {
       // Elephant trumpet
       const osc = ctx.createOscillator();
+      this.activeOscillators.push(osc);
       const gain = ctx.createGain();
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(300, now);
@@ -329,6 +379,7 @@ export class AppComponent implements AfterViewInit {
     else if (type === 'bird') {
       // Bird tweet (high frequency chirp)
       const osc = ctx.createOscillator();
+      this.activeOscillators.push(osc);
       const gain = ctx.createGain();
       osc.type = 'sine';
       osc.frequency.setValueAtTime(1200, now);
