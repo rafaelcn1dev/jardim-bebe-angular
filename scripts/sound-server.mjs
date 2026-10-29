@@ -18,7 +18,7 @@
 
 import { createServer } from 'node:http';
 import process from 'node:process';
-import { downloadSound } from './sound-lib.mjs';
+import { downloadSound, saveAnimal } from './sound-lib.mjs';
 
 const PORT = Number(process.env.SOUND_SERVER_PORT) || 4300;
 
@@ -40,11 +40,23 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === 'POST' && req.url === '/api/download') {
+  const rotas = {
+    '/api/download': async (payload) => {
+      const result = await downloadSound(payload.url, payload.nome);
+      console.log(`[OK] som ${result.relativePath}`);
+      return result;
+    },
+    '/api/animal': async (payload) => {
+      const result = await saveAnimal(payload.animal);
+      console.log(`[OK] animal "${result.animal.id}" salvo (total: ${result.total})`);
+      return result;
+    },
+  };
+
+  if (req.method === 'POST' && rotas[req.url]) {
     let raw = '';
     req.on('data', (chunk) => {
       raw += chunk;
-      // Protecao simples contra payload gigante
       if (raw.length > 1_000_000) {
         req.destroy();
       }
@@ -59,8 +71,7 @@ const server = createServer(async (req, res) => {
       }
 
       try {
-        const result = await downloadSound(payload.url, payload.nome);
-        console.log(`[OK] ${result.relativePath}`);
+        const result = await rotas[req.url](payload);
         sendJson(res, 200, { ok: true, ...result });
       } catch (err) {
         console.error(`[ERRO] ${err.message}`);

@@ -111,3 +111,56 @@ export async function downloadSound(url, nomeBruto) {
     absolutePath,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Registro de animais extras em src/assets/animals.json
+// ---------------------------------------------------------------------------
+
+import { readFile, writeFile } from 'node:fs/promises';
+
+const ASSETS_DIR = resolve(__dirname, '..', 'src', 'assets');
+const ANIMALS_JSON = join(ASSETS_DIR, 'animals.json');
+
+async function lerAnimais() {
+  try {
+    const raw = await readFile(ANIMALS_JSON, 'utf8');
+    const data = JSON.parse(raw);
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Adiciona (ou atualiza) um animal em animals.json.
+ * Espera um objeto AnimalData: { id, name, emoji, bgClass, soundType, x, y, size, message }.
+ */
+export async function saveAnimal(animal) {
+  if (!animal || !animal.id || !animal.name || !animal.emoji) {
+    throw new Error('Animal invalido: id, name e emoji sao obrigatorios.');
+  }
+
+  const id = sanitizarNome(animal.id);
+  if (!id) throw new Error('id invalido apos normalizacao.');
+
+  const registro = {
+    id,
+    name: String(animal.name).trim(),
+    emoji: String(animal.emoji).trim(),
+    bgClass: animal.bgClass || 'bg-pink-100',
+    soundType: animal.soundType || '',
+    x: Number.isFinite(animal.x) ? animal.x : 500,
+    y: Number.isFinite(animal.y) ? animal.y : 400,
+    size: Number.isFinite(animal.size) ? animal.size : 8,
+    message: String(animal.message || '').trim(),
+  };
+
+  const animais = await lerAnimais();
+  const semDuplicado = animais.filter((a) => a.id !== id);
+  semDuplicado.push(registro);
+
+  await mkdir(ASSETS_DIR, { recursive: true });
+  await writeFile(ANIMALS_JSON, JSON.stringify(semDuplicado, null, 2) + '\n', 'utf8');
+
+  return { animal: registro, total: semDuplicado.length };
+}
