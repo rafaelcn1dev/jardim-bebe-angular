@@ -28,8 +28,14 @@ jobs:
           node-version: 20
           cache: npm
 
+      # npm tem um bug com dependencias opcionais nativas (ex.: rollup) quando o
+      # package-lock.json foi gerado em outra plataforma. Regenerar o lock no
+      # runner Linux garante o binario @rollup/rollup-linux-x64-gnu.
+      # https://github.com/npm/cli/issues/4828
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        run: |
+          rm -f package-lock.json
+          npm install --no-audit --no-fund
 
       - name: Build
         run: npm run build -- --base-href=/jardim-bebe-angular/
