@@ -45,3 +45,42 @@ export const BG_CLASSES = [
   'bg-pink-100', 'bg-purple-100', 'bg-indigo-100', 'bg-teal-100',
   'bg-lime-100', 'bg-cyan-100', 'bg-rose-100', 'bg-fuchsia-100',
 ];
+
+/** Sugestao de animal para criar um novo (id, nome, emoji e fala prontos). */
+export interface AnimalSugestao {
+  id: string;
+  name: string;
+  emoji: string;
+  message: string;
+}
+
+/**
+ * Catalogo de animais sugeridos para criar novos no jardim. A pagina /baixar
+ * mostra apenas os que ainda nao foram cadastrados.
+ */
+export const CATALOGO_ANIMAIS: AnimalSugestao[] = [
+  { id: 'cavalo', name: 'Cavalo', emoji: '🐴', message: 'Iiihaa!' },
+  { id: 'porco', name: 'Porco', emoji: '🐷', message: 'Oinc! Oinc!' },
+  { id: 'ovelha', name: 'Ovelha', emoji: '🐑', message: 'Béee!' },
+  { id: 'pato', name: 'Pato', emoji: '🦆', message: 'Quá! Quá!' },
+  { id: 'macaco', name: 'Macaco', emoji: '🐵', message: 'Uh uh ah ah!' },
+  { id: 'coelho', name: 'Coelho', emoji: '🐰', message: 'Plim plim!' },
+  { id: 'urso', name: 'Urso', emoji: '🐻', message: 'Grrrão!' },
+  { id: 'panda', name: 'Panda', emoji: '🐼', message: 'Nhom nhom!' },
+  { id: 'coruja', name: 'Coruja', emoji: '🦉', message: 'Uhú! Uhú!' },
+  { id: 'pinguim', name: 'Pinguim', emoji: '🐧', message: 'Pru pru!' },
+  { id: 'abelha', name: 'Abelha', emoji: '🐝', message: 'Bzzzz!' },
+  { id: 'cobra', name: 'Cobra', emoji: '🐍', message: 'Sssss!' },
+  { id: 'peixe', name: 'Peixe', emoji: '🐟', message: 'Blub blub!' },
+  { id: 'golfinho', name: 'Golfinho', emoji: '🐬', message: 'Iii iii!' },
+  { id: 'baleia', name: 'Baleia', emoji: '🐳', message: 'Uuuuu!' },
+  { id: 'cabra', name: 'Cabra', emoji: '🐐', message: 'Mééé!' },
+  { id: 'rato', name: 'Rato', emoji: '🐭', message: 'Squick!' },
+  { id: 'galo', name: 'Galo', emoji: '🐓', message: 'Có-có-ri-có!' },
+  { id: 'peru', name: 'Peru', emoji: '🦃', message: 'Glu glu!' },
+  { id: 'raposa', name: 'Raposa', emoji: '🦊', message: 'Ring-ding!' },
+  { id: 'lobo', name: 'Lobo', emoji: '🐺', message: 'Auuuuu!' },
+  { id: 'unicornio', name: 'Unicórnio', emoji: '🦄', message: 'Iiihaa mágico!' },
+  { id: 'girafa', name: 'Girafa', emoji: '🦒', message: 'Hum hum!' },
+  { id: 'zebra', name: 'Zebra', emoji: '🦓', message: 'Nhii!' },
+];

@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Animal, AnimalData } from './animals';
+import { Animal, AnimalData, AnimalSugestao, CATALOGO_ANIMAIS } from './animals';
 import { AnimalsService } from './animals.service';
 
 // Porta do servidor local (scripts/sound-server.mjs)
@@ -47,38 +47,65 @@ interface Resultado {
 
           <!-- Campos extras para animal novo -->
           <div *ngIf="selecao === '__novo__'" class="space-y-3 bg-green-50 border border-green-200 rounded-xl p-3">
+
+            <!-- Escolha do animal disponivel (catalogo) -->
             <div>
-              <label class="block text-sm font-bold text-gray-700 mb-1">Nome do novo animal</label>
-              <input
-                type="text"
-                name="novoNome"
-                [(ngModel)]="novoNome"
-                placeholder="Ex.: Cavalo"
-                class="w-full rounded-xl border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
-              />
+              <label class="block text-sm font-bold text-gray-700 mb-1">Qual animal?</label>
+              <select
+                name="escolhaCatalogo"
+                [(ngModel)]="escolhaCatalogo"
+                (ngModelChange)="aoEscolherCatalogo()"
+                class="w-full rounded-xl border border-gray-300 px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-green-400"
+              >
+                <option *ngFor="let s of disponiveis" [value]="s.id">{{ s.emoji }} {{ s.name }}</option>
+                <option value="__custom__">✏️ Outro (personalizado)</option>
+              </select>
+              <p *ngIf="disponiveis.length === 0" class="text-xs text-amber-700 mt-1">
+                Todos os animais sugeridos já estão no jardim. Use "personalizado" para criar um diferente.
+              </p>
             </div>
-            <div class="flex gap-3">
-              <div class="w-24">
-                <label class="block text-sm font-bold text-gray-700 mb-1">Emoji</label>
+
+            <!-- Campos manuais apenas no modo personalizado -->
+            <div *ngIf="escolhaCatalogo === '__custom__'" class="space-y-3">
+              <div>
+                <label class="block text-sm font-bold text-gray-700 mb-1">Nome do animal</label>
                 <input
                   type="text"
-                  name="novoEmoji"
-                  [(ngModel)]="novoEmoji"
-                  maxlength="4"
-                  placeholder="🐴"
-                  class="w-full rounded-xl border border-gray-300 px-4 py-2 text-center text-2xl focus:outline-none focus:ring-2 focus:ring-green-400"
-                />
-              </div>
-              <div class="flex-1">
-                <label class="block text-sm font-bold text-gray-700 mb-1">Fala / mensagem</label>
-                <input
-                  type="text"
-                  name="novaMensagem"
-                  [(ngModel)]="novaMensagem"
-                  placeholder="Ex.: Iiihaa!"
+                  name="novoNome"
+                  [(ngModel)]="novoNome"
+                  placeholder="Ex.: Camelo"
                   class="w-full rounded-xl border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
                 />
               </div>
+              <div class="flex gap-3">
+                <div class="w-24">
+                  <label class="block text-sm font-bold text-gray-700 mb-1">Emoji</label>
+                  <input
+                    type="text"
+                    name="novoEmoji"
+                    [(ngModel)]="novoEmoji"
+                    maxlength="4"
+                    placeholder="🐫"
+                    class="w-full rounded-xl border border-gray-300 px-4 py-2 text-center text-2xl focus:outline-none focus:ring-2 focus:ring-green-400"
+                  />
+                </div>
+                <div class="flex-1">
+                  <label class="block text-sm font-bold text-gray-700 mb-1">Fala / mensagem</label>
+                  <input
+                    type="text"
+                    name="novaMensagem"
+                    [(ngModel)]="novaMensagem"
+                    placeholder="Ex.: Bléé!"
+                    class="w-full rounded-xl border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Previa do animal escolhido no catalogo -->
+            <div *ngIf="escolhaCatalogo !== '__custom__'" class="flex items-center gap-3 text-sm text-gray-600">
+              <span class="text-3xl">{{ novoEmoji }}</span>
+              <span>Vai criar <strong>{{ novoNome }}</strong> dizendo "{{ novaMensagem }}".</span>
             </div>
           </div>
 
@@ -100,7 +127,7 @@ interface Resultado {
 
           <button
             type="submit"
-            [disabled]="carregando || !url || (selecao === '__novo__' && (!novoNome || !novoEmoji))"
+            [disabled]="carregando || !url || (selecao === '__novo__' && (!novoNome || !novoEmoji) && escolhaCatalogo === '__custom__') || (selecao === '__novo__' && escolhaCatalogo !== '__custom__' && disponiveis.length === 0)"
             class="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl shadow-lg transition flex items-center justify-center gap-2"
           >
             <span *ngIf="!carregando">⬇️ Salvar</span>
@@ -141,7 +168,11 @@ export class BaixarComponent implements OnInit {
   animais: Animal[] = [];
   selecao = '';
 
-  // Campos de animal novo
+  // Catalogo de animais ainda nao cadastrados + opcao personalizada
+  disponiveis: AnimalSugestao[] = [];
+  escolhaCatalogo = '';
+
+  // Campos de animal novo (preenchidos pelo catalogo ou manualmente)
   novoNome = '';
   novoEmoji = '';
   novaMensagem = '';
@@ -153,8 +184,31 @@ export class BaixarComponent implements OnInit {
   constructor(private animalsService: AnimalsService) {}
 
   async ngOnInit() {
-    this.animais = await this.animalsService.loadAll();
+    await this.recarregar();
     this.selecao = this.animais[0]?.id ?? '__novo__';
+  }
+
+  private async recarregar() {
+    this.animais = await this.animalsService.loadAll();
+    const idsExistentes = new Set(this.animais.map((a) => a.id));
+    this.disponiveis = CATALOGO_ANIMAIS.filter((s) => !idsExistentes.has(s.id));
+    // Seleciona a primeira sugestao disponivel (ou personalizado se nao houver).
+    this.escolhaCatalogo = this.disponiveis[0]?.id ?? '__custom__';
+    this.aoEscolherCatalogo();
+  }
+
+  /** Preenche nome/emoji/fala conforme o animal escolhido no catalogo. */
+  aoEscolherCatalogo() {
+    if (this.escolhaCatalogo === '__custom__') {
+      this.novoNome = this.novoEmoji = this.novaMensagem = '';
+      return;
+    }
+    const s = this.disponiveis.find((x) => x.id === this.escolhaCatalogo);
+    if (s) {
+      this.novoNome = s.name;
+      this.novoEmoji = s.emoji;
+      this.novaMensagem = s.message;
+    }
   }
 
   private slug(txt: string): string {
@@ -208,7 +262,6 @@ export class BaixarComponent implements OnInit {
         if (!resAnimal.ok) throw new Error(resAnimal.error || 'Falha ao salvar o animal.');
         // Persiste tambem localmente para aparecer mesmo sem recarregar o json.
         this.animalsService.saveLocalExtra(animalData);
-        this.animais = await this.animalsService.loadAll();
       }
 
       this.resultado = {
@@ -218,7 +271,11 @@ export class BaixarComponent implements OnInit {
           : `Som salvo para "${id}". Volte ao jardim e clique no animal para ouvir.`,
       };
       this.url = '';
-      this.novoNome = this.novoEmoji = this.novaMensagem = '';
+
+      // Recarrega a lista (remove o animal recem-criado do catalogo de disponiveis).
+      if (animalData) {
+        await this.recarregar();
+      }
     } catch (err) {
       this.resultado = {
         tipo: 'erro',
