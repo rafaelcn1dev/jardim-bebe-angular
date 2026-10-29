@@ -182,13 +182,25 @@ export class AppComponent implements AfterViewInit {
 
   triggerAnimal(animal: Animal, event: Event) {
     event.stopPropagation();
-    this.initAudio();
-    this.playSound(animal.soundType);
+    this.playAnimalSound(animal);
 
     animal.animState = 'active';
     setTimeout(() => {
       animal.animState = 'idle';
     }, 1200);
+  }
+
+  /**
+   * Toca o arquivo de áudio do animal (src/assets/sounds/<id>.mp3).
+   * Se o arquivo não existir ou falhar ao tocar, cai no som sintetizado.
+   */
+  playAnimalSound(animal: Animal) {
+    const audio = new Audio(`assets/sounds/${animal.id}.mp3`);
+    audio.play().catch(() => {
+      // Arquivo ausente ou bloqueado: usa o som gerado pela Web Audio API.
+      this.initAudio();
+      this.playSound(animal.soundType);
+    });
   }
 
   playSound(type: string) {
