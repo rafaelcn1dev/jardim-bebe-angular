@@ -44,3 +44,18 @@ Fontes de áudio livres recomendadas (procure o botão de download direto `.mp3`
 
 > Não use links do YouTube nem áudio protegido por direitos autorais — o script
 > recusa URLs do YouTube de propósito.
+
+## Baixar pela página /baixar (interface visual)
+
+Além da linha de comando, há uma página com formulário:
+
+1. Em um terminal: `npm run sound-server` (deixe aberto — é o servidor que grava o arquivo).
+2. Em outro terminal: `npm start`.
+3. Abra `http://localhost:4200/#/baixar` (ou clique em "🎵 Baixar sons" no jardim).
+4. Cole o link direto `.mp3` e o nome do animal, e clique em baixar.
+
+O arquivo é gravado em `src/assets/sounds/<nome>.mp3`.
+
+> A página só grava arquivos em desenvolvimento local, porque depende do
+> servidor Node. No GitHub Pages (site estático) esse recurso fica indisponível
+> — lá os sons são apenas os que já estão commitados na pasta.
