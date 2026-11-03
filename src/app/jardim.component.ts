@@ -52,7 +52,11 @@ import { AnimalsService } from './animals.service';
         (touchmove)="onTouchMove($event)"
         (touchend)="endDrag()"
       >
-        
+
+      <!-- Faixa repetida 3x (esquerda/centro/direita) para o efeito "globo" -->
+      <div *ngFor="let f of faixas" class="absolute top-0" [style.left.px]="f * worldWidth"
+        [style.width.px]="worldWidth" [style.height.px]="worldHeight">
+
         <!-- Background Scenery Elements (Grass, Trees, Lake, Fence) -->
         <div class="absolute inset-0 pointer-events-none overflow-hidden">
           <!-- Sol (dia) -->
@@ -99,10 +103,11 @@ import { AnimalsService } from './animals.service';
         <!-- Interactive Animals in the Garden -->
         <div 
           *ngFor="let animal of animals"
-          class="absolute cursor-pointer flex flex-col items-center group transition-transform duration-300"
+          class="absolute cursor-grab active:cursor-grabbing flex flex-col items-center group transition-transform duration-300"
           [style.left.px]="animal.x"
           [style.top.px]="animal.y"
-          (click)="triggerAnimal(animal, $event)"
+          (mousedown)="onAnimalDown(animal, $event.clientX, $event.clientY, $event)"
+          (touchstart)="onAnimalDown(animal, $event.touches[0].clientX, $event.touches[0].clientY, $event)"
         >
           <!-- Speech Bubble / Sound Effect Text -->
           <div 
@@ -138,6 +143,9 @@ import { AnimalsService } from './animals.service';
             {{ animal.name }}
           </div>
         </div>
+
+      </div>
+      <!-- fim da faixa repetida -->
 
       </div>
 
@@ -203,6 +211,15 @@ export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
 
   animals: Animal[] = [];
 
+  // Arraste de animal (reposicionar). Diferencia clique de arraste por limiar.
+  private animalArrastado: Animal | null = null;
+  private animalMoveuPx = 0;
+  private dragAnimalStart = { mx: 0, my: 0, ax: 0, ay: 0 };
+  private readonly CLICK_THRESHOLD = 6; // px: abaixo disso, considera clique
+
+  // Faixas para o efeito "globo" (conteudo repetido a esquerda/centro/direita).
+  readonly faixas = [-1, 0, 1];
+
   constructor(private animalsService: AnimalsService) {}
 
   async ngOnInit() {
@@ -240,9 +257,7 @@ export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  triggerAnimal(animal: Animal, event: Event) {
-    event.stopPropagation();
-
+  triggerAnimal(animal: Animal) {
     // Interrompe qualquer som em andamento antes de tocar o novo.
     this.stopCurrentSound();
 
@@ -254,6 +269,67 @@ export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
     // Reseta o estado visual dos demais e ativa só o clicado.
     this.animals.forEach((a) => (a.animState = 'idle'));
     animal.animState = 'active';
+  }
+
+  // --- Arraste de animal (reposicionar) ---
+
+  /** Inicia o arraste de um animal (nao deixa o mundo se mover junto). */
+  onAnimalDown(animal: Animal, clientX: number, clientY: number, event: Event) {
+    event.stopPropagation();
+    this.animalArrastado = animal;
+    this.animalMoveuPx = 0;
+    this.dragAnimalStart = { mx: clientX, my: clientY, ax: animal.x, ay: animal.y };
+  }
+
+  /** Move o animal seguindo o ponteiro; acumula distancia para diferenciar clique. */
+  private moverAnimal(clientX: number, clientY: number) {
+    if (!this.animalArrastado) return;
+    const dx = clientX - this.dragAnimalStart.mx;
+    const dy = clientY - this.dragAnimalStart.my;
+    this.animalMoveuPx = Math.max(this.animalMoveuPx, Math.hypot(dx, dy));
+    this.animalArrastado.x = this.dragAnimalStart.ax + dx;
+    this.animalArrastado.y = this.dragAnimalStart.ay + dy;
+  }
+
+  /** Finaliza: se mal se moveu, trata como clique (toca som); senao, salva posicao. */
+  private soltarAnimal() {
+    const animal = this.animalArrastado;
+    if (!animal) return;
+    this.animalArrastado = null;
+
+    if (this.animalMoveuPx < this.CLICK_THRESHOLD) {
+      this.triggerAnimal(animal);
+      return;
+    }
+    // Foi um arraste real: persiste a nova posicao.
+    this.salvarPosicaoAnimal(animal);
+  }
+
+  /** Salva a posicao do animal (localStorage sempre; animals.json se servidor on). */
+  private async salvarPosicaoAnimal(animal: Animal) {
+    const dado = {
+      id: animal.id,
+      name: animal.name,
+      emoji: animal.emoji,
+      bgClass: animal.bgClass,
+      soundType: animal.soundType,
+      x: Math.round(animal.x),
+      y: Math.round(animal.y),
+      size: animal.size,
+      message: animal.message,
+    };
+    // Persiste localmente (funciona ate no Pages).
+    this.animalsService.saveLocalExtra(dado);
+    // Tenta persistir no animals.json via servidor local (ignora se offline).
+    try {
+      await fetch('http://localhost:4300/api/animal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ animal: dado }),
+      });
+    } catch {
+      // Servidor offline: fica so no localStorage, tudo bem.
+    }
   }
 
   /**
@@ -468,24 +544,36 @@ export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  // Dragging logic for panning the garden map
+  // --- Pan do mundo (com wrap horizontal estilo globo) ---
+
   startDrag(e: MouseEvent) {
+    // Se um animal esta sendo arrastado, nao inicia o pan do mundo.
+    if (this.animalArrastado) return;
     this.isDragging = true;
     this.startX = e.clientX - this.posX;
     this.startY = e.clientY - this.posY;
   }
 
   onDrag(e: MouseEvent) {
+    if (this.animalArrastado) {
+      this.moverAnimal(e.clientX, e.clientY);
+      return;
+    }
     if (!this.isDragging) return;
-    this.posX = e.clientX - this.startX;
+    this.posX = this.wrapX(e.clientX - this.startX);
     this.posY = e.clientY - this.startY;
   }
 
   endDrag() {
+    if (this.animalArrastado) {
+      this.soltarAnimal();
+      return;
+    }
     this.isDragging = false;
   }
 
   startTouch(e: TouchEvent) {
+    if (this.animalArrastado) return;
     if (e.touches.length === 1) {
       this.isDragging = true;
       this.startX = e.touches[0].clientX - this.posX;
@@ -494,8 +582,22 @@ export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   onTouchMove(e: TouchEvent) {
+    if (this.animalArrastado && e.touches.length === 1) {
+      this.moverAnimal(e.touches[0].clientX, e.touches[0].clientY);
+      return;
+    }
     if (!this.isDragging || e.touches.length !== 1) return;
-    this.posX = e.touches[0].clientX - this.startX;
+    this.posX = this.wrapX(e.touches[0].clientX - this.startX);
     this.posY = e.touches[0].clientY - this.startY;
+  }
+
+  /**
+   * Normaliza o deslocamento horizontal para dar a "volta ao globo": mantem
+   * posX dentro de (-worldWidth, 0], e as 3 faixas repetidas preenchem as bordas.
+   */
+  private wrapX(x: number): number {
+    const w = this.worldWidth;
+    // Resultado em (-w, 0]
+    return ((x % w) - w) % w;
   }
 }
