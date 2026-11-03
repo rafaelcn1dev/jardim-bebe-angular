@@ -9,7 +9,7 @@
 
 import { createWriteStream } from 'node:fs';
 import { mkdir, unlink } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, extname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
@@ -203,5 +203,58 @@ export async function saveSoundBytes(buffer, nomeBruto, nomeArquivoOriginal = ''
     fileName,
     relativePath: `assets/sounds/${fileName}`,
     absolutePath,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Listar sons existentes e reaproveitar um som ja baixado
+// ---------------------------------------------------------------------------
+
+import { readdir, copyFile } from 'node:fs/promises';
+
+/** Lista os arquivos de audio ja presentes em src/assets/sounds/. */
+export async function listSounds() {
+  try {
+    const arquivos = await readdir(SOUNDS_DIR);
+    return arquivos
+      .filter((f) => EXT_PERMITIDAS.includes(extname(f).toLowerCase()))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Copia um som existente (ex.: "gato.mp3") para o id de destino (ex.: "cavalo"),
+ * preservando a extensao do arquivo de origem.
+ */
+export async function copySound(origemArquivo, nomeDestinoBruto) {
+  const origem = basename(String(origemArquivo || ''));
+  const ext = extname(origem).toLowerCase();
+  if (!EXT_PERMITIDAS.includes(ext)) {
+    throw new Error('Arquivo de origem invalido.');
+  }
+
+  const caminhoOrigem = join(SOUNDS_DIR, origem);
+  if (!caminhoOrigem.startsWith(SOUNDS_DIR)) {
+    throw new Error('Origem fora da pasta de sons.');
+  }
+
+  const nome = sanitizarNome(nomeDestinoBruto);
+  if (!nome) throw new Error('Nome de destino invalido.');
+
+  const fileName = `${nome}${ext}`;
+  const caminhoDestino = join(SOUNDS_DIR, fileName);
+
+  try {
+    await copyFile(caminhoOrigem, caminhoDestino);
+  } catch (err) {
+    throw new Error(`Falha ao copiar o som: ${err.message}`);
+  }
+
+  return {
+    fileName,
+    relativePath: `assets/sounds/${fileName}`,
+    absolutePath: caminhoDestino,
   };
 }

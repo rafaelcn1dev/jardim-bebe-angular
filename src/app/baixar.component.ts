@@ -13,6 +13,8 @@ interface Resultado {
   texto: string;
 }
 
+type Origem = 'link' | 'upload' | 'padrao';
+
 @Component({
   selector: 'app-baixar',
   standalone: true,
@@ -26,7 +28,7 @@ interface Resultado {
             🎵 Som e animais do jardim
           </h1>
           <p class="text-sm text-gray-600 mt-1">
-            Escolha um animal (ou crie um novo) e adicione o som dele.
+            Crie um novo animal ou edite o som e a fala de um existente.
           </p>
         </div>
 
@@ -38,17 +40,16 @@ interface Resultado {
             <select
               name="selecao"
               [(ngModel)]="selecao"
+              (ngModelChange)="aoTrocarSelecao()"
               class="w-full rounded-xl border border-gray-300 px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-green-400"
             >
-              <option *ngFor="let a of animais" [value]="a.id">{{ a.emoji }} {{ a.name }}</option>
               <option value="__novo__">➕ Criar novo animal</option>
+              <option *ngFor="let a of animais" [value]="a.id">✏️ Editar {{ a.emoji }} {{ a.name }}</option>
             </select>
           </div>
 
-          <!-- Campos extras para animal novo -->
+          <!-- Campos extras para animal NOVO -->
           <div *ngIf="selecao === '__novo__'" class="space-y-3 bg-green-50 border border-green-200 rounded-xl p-3">
-
-            <!-- Escolha do animal disponivel (catalogo) -->
             <div>
               <label class="block text-sm font-bold text-gray-700 mb-1">Qual animal?</label>
               <select
@@ -65,135 +66,108 @@ interface Resultado {
               </p>
             </div>
 
-            <!-- Campos manuais apenas no modo personalizado -->
             <div *ngIf="escolhaCatalogo === '__custom__'" class="space-y-3">
               <div>
                 <label class="block text-sm font-bold text-gray-700 mb-1">Nome do animal</label>
-                <input
-                  type="text"
-                  name="novoNome"
-                  [(ngModel)]="novoNome"
-                  placeholder="Ex.: Camelo"
-                  class="w-full rounded-xl border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
-                />
+                <input type="text" name="novoNome" [(ngModel)]="novoNome" placeholder="Ex.: Camelo"
+                  class="w-full rounded-xl border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-400" />
               </div>
               <div class="flex gap-3">
                 <div class="w-24">
                   <label class="block text-sm font-bold text-gray-700 mb-1">Emoji</label>
-                  <input
-                    type="text"
-                    name="novoEmoji"
-                    [(ngModel)]="novoEmoji"
-                    maxlength="4"
-                    placeholder="🐫"
-                    class="w-full rounded-xl border border-gray-300 px-4 py-2 text-center text-2xl focus:outline-none focus:ring-2 focus:ring-green-400"
-                  />
+                  <input type="text" name="novoEmoji" [(ngModel)]="novoEmoji" maxlength="4" placeholder="🐫"
+                    class="w-full rounded-xl border border-gray-300 px-4 py-2 text-center text-2xl focus:outline-none focus:ring-2 focus:ring-green-400" />
                 </div>
                 <div class="flex-1">
                   <label class="block text-sm font-bold text-gray-700 mb-1">Fala / mensagem</label>
-                  <input
-                    type="text"
-                    name="novaMensagem"
-                    [(ngModel)]="novaMensagem"
-                    placeholder="Ex.: Bléé!"
-                    class="w-full rounded-xl border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
-                  />
+                  <input type="text" name="novaMensagem" [(ngModel)]="novaMensagem" placeholder="Ex.: Bléé!"
+                    class="w-full rounded-xl border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-400" />
                 </div>
               </div>
             </div>
 
-            <!-- Previa do animal escolhido no catalogo -->
             <div *ngIf="escolhaCatalogo !== '__custom__'" class="flex items-center gap-3 text-sm text-gray-600">
               <span class="text-3xl">{{ novoEmoji }}</span>
               <span>Vai criar <strong>{{ novoNome }}</strong> dizendo "{{ novaMensagem }}".</span>
             </div>
           </div>
 
-          <!-- Origem do som: link ou upload -->
+          <!-- Edicao de animal EXISTENTE: trocar a fala -->
+          <div *ngIf="selecao !== '__novo__'" class="space-y-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <div>
+              <label class="block text-sm font-bold text-gray-700 mb-1">Fala / mensagem</label>
+              <input type="text" name="editMensagem" [(ngModel)]="editMensagem" placeholder="Ex.: Muuu!"
+                class="w-full rounded-xl border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+          </div>
+
+          <!-- Origem do som -->
           <div>
             <label class="block text-sm font-bold text-gray-700 mb-1">Som do animal</label>
-            <div class="flex gap-2 mb-2">
-              <button
-                type="button"
-                (click)="origem = 'link'"
+            <div class="grid grid-cols-3 gap-2 mb-2">
+              <button type="button" (click)="origem = 'link'"
                 [ngClass]="origem === 'link' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'"
-                class="flex-1 rounded-xl px-3 py-1.5 text-sm font-bold transition"
-              >
-                🔗 Link
-              </button>
-              <button
-                type="button"
-                (click)="origem = 'upload'"
+                class="rounded-xl px-2 py-1.5 text-sm font-bold transition">🔗 Link</button>
+              <button type="button" (click)="origem = 'upload'"
                 [ngClass]="origem === 'upload' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'"
-                class="flex-1 rounded-xl px-3 py-1.5 text-sm font-bold transition"
-              >
-                📁 Enviar arquivo
-              </button>
+                class="rounded-xl px-2 py-1.5 text-sm font-bold transition">📁 Upload</button>
+              <button type="button" (click)="origem = 'padrao'"
+                [ngClass]="origem === 'padrao' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'"
+                class="rounded-xl px-2 py-1.5 text-sm font-bold transition">🔈 Padrão</button>
             </div>
 
             <!-- Modo link -->
             <div *ngIf="origem === 'link'">
-              <input
-                type="url"
-                name="url"
-                [(ngModel)]="url"
-                placeholder="https://.../som.mp3"
-                class="w-full rounded-xl border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
-              />
-              <p class="text-xs text-gray-500 mt-1">
-                Link <strong>direto</strong> de áudio. Fontes livres: Pixabay, Mixkit, Freesound (CC0).
-              </p>
+              <input type="url" name="url" [(ngModel)]="url" placeholder="https://.../som.mp3"
+                class="w-full rounded-xl border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-400" />
+              <p class="text-xs text-gray-500 mt-1">Link <strong>direto</strong> de áudio (Pixabay, Mixkit, Freesound CC0).</p>
             </div>
 
             <!-- Modo upload -->
             <div *ngIf="origem === 'upload'">
-              <input
-                type="file"
-                name="arquivo"
-                accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac"
-                (change)="aoSelecionarArquivo($event)"
-                class="w-full text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-green-100 file:px-3 file:py-1.5 file:text-green-800 file:font-bold hover:file:bg-green-200"
-              />
-              <p class="text-xs text-gray-500 mt-1">
-                Envie um arquivo <code>.mp3</code>, <code>.wav</code> ou <code>.ogg</code> do seu computador (até 15 MB).
+              <input type="file" name="arquivo" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" (change)="aoSelecionarArquivo($event)"
+                class="w-full text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-green-100 file:px-3 file:py-1.5 file:text-green-800 file:font-bold hover:file:bg-green-200" />
+              <p class="text-xs text-gray-500 mt-1">Arquivo <code>.mp3</code>/<code>.wav</code> do seu computador (até 15 MB).</p>
+            </div>
+
+            <!-- Modo som padrao (reaproveita um arquivo existente) -->
+            <div *ngIf="origem === 'padrao'">
+              <select name="somPadrao" [(ngModel)]="somPadrao"
+                class="w-full rounded-xl border border-gray-300 px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-green-400">
+                <option *ngIf="selecao !== '__novo__'" value="">— manter o som atual —</option>
+                <option *ngFor="let s of sonsDisponiveis" [value]="s">{{ s }}</option>
+              </select>
+              <p *ngIf="sonsDisponiveis.length === 0" class="text-xs text-amber-700 mt-1">
+                Nenhum som encontrado. Rode <code>npm start</code> para o servidor de sons listar os arquivos.
               </p>
+              <button *ngIf="somPadrao" type="button" (click)="ouvirPreview()"
+                class="mt-2 text-xs font-bold text-green-700 hover:underline">▶️ Ouvir "{{ somPadrao }}"</button>
             </div>
           </div>
 
-          <button
-            type="submit"
-            [disabled]="botaoDesabilitado()"
-            class="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl shadow-lg transition flex items-center justify-center gap-2"
-          >
-            <span *ngIf="!carregando">⬇️ Salvar</span>
+          <button type="submit" [disabled]="botaoDesabilitado()"
+            class="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl shadow-lg transition flex items-center justify-center gap-2">
+            <span *ngIf="!carregando">{{ selecao === '__novo__' ? '➕ Criar' : '💾 Salvar alterações' }}</span>
             <span *ngIf="carregando">Salvando...</span>
           </button>
         </form>
 
-        <div
-          *ngIf="resultado"
-          class="mt-4 rounded-xl px-4 py-3 text-sm font-medium"
+        <div *ngIf="resultado" class="mt-4 rounded-xl px-4 py-3 text-sm font-medium"
           [ngClass]="{
             'bg-green-100 text-green-800 border border-green-300': resultado.tipo === 'ok',
             'bg-red-100 text-red-800 border border-red-300': resultado.tipo === 'erro'
-          }"
-        >
+          }">
           {{ resultado.texto }}
         </div>
 
         <div class="mt-6 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-1">
           <p class="font-bold text-gray-600">Como usar:</p>
           <p>Rode <code>npm start</code> — ele já inicia o app e o servidor de sons juntos.</p>
-          <p>Fontes de áudio livres: Pixabay, Mixkit, Freesound (CC0).</p>
-          <p class="text-amber-700">
-            Links do YouTube não são aceitos (Termos de Serviço + direitos autorais).
-          </p>
+          <p class="text-amber-700">Links do YouTube não são aceitos (Termos de Serviço + direitos autorais).</p>
         </div>
 
         <div class="mt-6 text-center">
-          <a routerLink="/" class="text-green-700 font-bold text-sm hover:underline">
-            ← Voltar ao jardim
-          </a>
+          <a routerLink="/" class="text-green-700 font-bold text-sm hover:underline">← Voltar ao jardim</a>
         </div>
       </div>
     </div>
@@ -201,65 +175,64 @@ interface Resultado {
 })
 export class BaixarComponent implements OnInit {
   animais: Animal[] = [];
-  selecao = '';
+  selecao = '__novo__';
 
   // Catalogo de animais ainda nao cadastrados + opcao personalizada
   disponiveis: AnimalSugestao[] = [];
   escolhaCatalogo = '';
 
-  // Campos de animal novo (preenchidos pelo catalogo ou manualmente)
+  // Campos de animal novo
   novoNome = '';
   novoEmoji = '';
   novaMensagem = '';
 
-  // Origem do som: por link direto ou upload de arquivo local
-  origem: 'link' | 'upload' = 'link';
+  // Edicao de animal existente
+  editMensagem = '';
+
+  // Origem do som
+  origem: Origem = 'link';
   url = '';
   arquivo: File | null = null;
+  somPadrao = '';
+  sonsDisponiveis: string[] = [];
 
   carregando = false;
   resultado: Resultado | null = null;
 
   constructor(private animalsService: AnimalsService) {}
 
-  aoSelecionarArquivo(event: Event) {
-    const input = event.target as HTMLInputElement;
-    this.arquivo = input.files && input.files.length ? input.files[0] : null;
-  }
-
-  /** Botao fica desabilitado se faltar som ou dados do animal novo. */
-  botaoDesabilitado(): boolean {
-    if (this.carregando) return true;
-
-    // Precisa de um som: link preenchido OU arquivo selecionado.
-    const semSom = this.origem === 'link' ? !this.url : !this.arquivo;
-    if (semSom) return true;
-
-    // Para animal novo, valida os dados conforme o modo.
-    if (this.selecao === '__novo__') {
-      if (this.escolhaCatalogo === '__custom__') {
-        return !this.novoNome || !this.novoEmoji;
-      }
-      return this.disponiveis.length === 0;
-    }
-    return false;
-  }
-
   async ngOnInit() {
     await this.recarregar();
-    this.selecao = this.animais[0]?.id ?? '__novo__';
+    this.sonsDisponiveis = await this.animalsService.listSounds(SOUND_SERVER);
   }
 
   private async recarregar() {
     this.animais = await this.animalsService.loadAll();
     const idsExistentes = new Set(this.animais.map((a) => a.id));
     this.disponiveis = CATALOGO_ANIMAIS.filter((s) => !idsExistentes.has(s.id));
-    // Seleciona a primeira sugestao disponivel (ou personalizado se nao houver).
     this.escolhaCatalogo = this.disponiveis[0]?.id ?? '__custom__';
     this.aoEscolherCatalogo();
+    this.aoTrocarSelecao();
   }
 
-  /** Preenche nome/emoji/fala conforme o animal escolhido no catalogo. */
+  aoSelecionarArquivo(event: Event) {
+    const input = event.target as HTMLInputElement;
+    this.arquivo = input.files && input.files.length ? input.files[0] : null;
+  }
+
+  /** Ao trocar o animal selecionado: se for existente, carrega a fala atual. */
+  aoTrocarSelecao() {
+    if (this.selecao === '__novo__') {
+      this.editMensagem = '';
+      if (this.origem === 'padrao') this.somPadrao = '';
+      return;
+    }
+    const a = this.animais.find((x) => x.id === this.selecao);
+    this.editMensagem = a?.message ?? '';
+    // Ao editar, por padrao mantem o som atual (opcao vazia no modo padrao).
+    this.somPadrao = '';
+  }
+
   aoEscolherCatalogo() {
     if (this.escolhaCatalogo === '__custom__') {
       this.novoNome = this.novoEmoji = this.novaMensagem = '';
@@ -273,6 +246,31 @@ export class BaixarComponent implements OnInit {
     }
   }
 
+  ouvirPreview() {
+    if (!this.somPadrao) return;
+    const src = `${SOUND_SERVER}/sounds/${this.somPadrao}`;
+    new Audio(src).play().catch(() => {});
+  }
+
+  botaoDesabilitado(): boolean {
+    if (this.carregando) return true;
+
+    const editando = this.selecao !== '__novo__';
+
+    // Som obrigatorio no modo novo; opcional ao editar (pode manter o atual).
+    let temSom = false;
+    if (this.origem === 'link') temSom = !!this.url;
+    else if (this.origem === 'upload') temSom = !!this.arquivo;
+    else temSom = !!this.somPadrao; // padrao
+    if (!editando && !temSom) return true;
+
+    if (this.selecao === '__novo__') {
+      if (this.escolhaCatalogo === '__custom__') return !this.novoNome || !this.novoEmoji;
+      return this.disponiveis.length === 0;
+    }
+    return false;
+  }
+
   private slug(txt: string): string {
     return txt
       .trim()
@@ -283,16 +281,25 @@ export class BaixarComponent implements OnInit {
       .replace(/^-+|-+$/g, '');
   }
 
+  /** Indica se o usuario forneceu um som nesta operacao. */
+  private temSomInformado(): boolean {
+    if (this.origem === 'link') return !!this.url;
+    if (this.origem === 'upload') return !!this.arquivo;
+    return !!this.somPadrao;
+  }
+
   async salvar() {
     this.resultado = null;
     this.carregando = true;
 
     try {
-      // Define o animal alvo (existente ou novo) e o id que vira o nome do arquivo.
+      const editando = this.selecao !== '__novo__';
       let animalData: AnimalData | null = null;
       let id: string;
 
-      if (this.selecao === '__novo__') {
+      if (editando) {
+        id = this.selecao;
+      } else {
         id = this.slug(this.novoNome);
         if (!id) throw new Error('Informe um nome válido para o novo animal.');
         if (this.animais.some((a) => a.id === id)) {
@@ -304,58 +311,79 @@ export class BaixarComponent implements OnInit {
           name: this.novoNome.trim(),
           emoji: this.novoEmoji.trim(),
           bgClass: this.animalsService.pickBgClass(this.animais.length),
-          soundType: '', // sem som sintetizado; usa o .mp3
+          soundType: '',
           x: pos.x,
           y: pos.y,
           size: 8,
           message: this.novaMensagem.trim() || this.novoNome.trim(),
         };
-      } else {
-        id = this.selecao;
       }
 
-      // 1. Obtem o som: por link (download) ou por upload de arquivo.
-      let resSom: any;
-      if (this.origem === 'upload') {
-        if (!this.arquivo) throw new Error('Selecione um arquivo de áudio.');
-        resSom = await this.uploadArquivo(id, this.arquivo);
-      } else {
-        resSom = await this.postJson('/api/download', { url: this.url, nome: id });
+      // 1. Som (obrigatorio ao criar; opcional ao editar).
+      if (!editando || this.temSomInformado()) {
+        await this.aplicarSom(id);
       }
-      if (!resSom.ok) throw new Error(resSom.error || 'Falha ao obter o áudio.');
 
-      // 2. Se for animal novo, registra no animals.json e no localStorage.
-      if (animalData) {
+      // 2. Grava/atualiza o animal.
+      if (editando) {
+        const base = this.animais.find((a) => a.id === id)!;
+        const atualizado: AnimalData = {
+          id: base.id,
+          name: base.name,
+          emoji: base.emoji,
+          bgClass: base.bgClass,
+          soundType: base.soundType,
+          x: base.x,
+          y: base.y,
+          size: base.size,
+          message: this.editMensagem.trim() || base.message,
+        };
+        const resAnimal = await this.postJson('/api/animal', { animal: atualizado });
+        if (!resAnimal.ok) throw new Error(resAnimal.error || 'Falha ao salvar o animal.');
+        this.animalsService.saveLocalExtra(atualizado);
+      } else if (animalData) {
         const resAnimal = await this.postJson('/api/animal', { animal: animalData });
         if (!resAnimal.ok) throw new Error(resAnimal.error || 'Falha ao salvar o animal.');
-        // Persiste tambem localmente para aparecer mesmo sem recarregar o json.
         this.animalsService.saveLocalExtra(animalData);
       }
 
       this.resultado = {
         tipo: 'ok',
-        texto: animalData
-          ? `Animal "${animalData.name}" criado e som salvo. Volte ao jardim para vê-lo!`
-          : `Som salvo para "${id}". Volte ao jardim e clique no animal para ouvir.`,
+        texto: editando
+          ? `Animal atualizado. Volte ao jardim para ver/ouvir as mudanças.`
+          : `Animal "${animalData!.name}" criado e som salvo. Volte ao jardim para vê-lo!`,
       };
+
       this.url = '';
       this.arquivo = null;
-
-      // Recarrega a lista (remove o animal recem-criado do catalogo de disponiveis).
-      if (animalData) {
-        await this.recarregar();
-      }
+      this.somPadrao = '';
+      await this.recarregar();
+      this.sonsDisponiveis = await this.animalsService.listSounds(SOUND_SERVER);
     } catch (err) {
       this.resultado = {
         tipo: 'erro',
         texto:
           (err as Error).message ||
-          'Não foi possível concluir. Rode "npm start" (ele já sobe o servidor de sons). ' +
-            '(No GitHub Pages este recurso não funciona, pois não há servidor.)',
+          'Não foi possível concluir. Rode "npm start" (ele já sobe o servidor de sons).',
       };
     } finally {
       this.carregando = false;
     }
+  }
+
+  /** Aplica o som ao id do animal conforme a origem escolhida. */
+  private async aplicarSom(id: string) {
+    let res: any;
+    if (this.origem === 'upload') {
+      if (!this.arquivo) throw new Error('Selecione um arquivo de áudio.');
+      res = await this.uploadArquivo(id, this.arquivo);
+    } else if (this.origem === 'padrao') {
+      if (!this.somPadrao) throw new Error('Escolha um som padrão.');
+      res = await this.postJson('/api/copy', { origem: this.somPadrao, nome: id });
+    } else {
+      res = await this.postJson('/api/download', { url: this.url, nome: id });
+    }
+    if (!res.ok) throw new Error(res.error || 'Falha ao obter o áudio.');
   }
 
   private async postJson(path: string, body: unknown): Promise<any> {
@@ -373,7 +401,6 @@ export class BaixarComponent implements OnInit {
     }
   }
 
-  /** Envia os bytes do arquivo escolhido para o servidor local gravar. */
   private async uploadArquivo(id: string, file: File): Promise<any> {
     try {
       const params = new URLSearchParams({ nome: id, arquivo: file.name });

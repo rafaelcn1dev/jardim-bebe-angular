@@ -76,4 +76,16 @@ export class AnimalsService {
   pickBgClass(index: number): string {
     return BG_CLASSES[index % BG_CLASSES.length];
   }
+
+  /** Lista os sons ja existentes na pasta (via servidor local). */
+  async listSounds(soundServer: string): Promise<string[]> {
+    try {
+      const resp = await fetch(`${soundServer}/api/sounds`);
+      if (!resp.ok) return [];
+      const data = await resp.json();
+      return Array.isArray(data.sons) ? data.sons : [];
+    } catch {
+      return [];
+    }
+  }
 }

@@ -10,8 +10,11 @@
  *   npm run sound-server
  *
  * Endpoints:
+ *   GET  /api/sounds     lista os .mp3 ja existentes na pasta
+ *   GET  /sounds/<arq>   serve um audio direto do disco (fallback do ng serve)
  *   POST /api/download   body JSON: { "url": "...", "nome": "gato" }
  *   POST /api/upload?nome=gato&arquivo=som.mp3   body: bytes do arquivo
+ *   POST /api/copy       body JSON: { "origem": "gato.mp3", "nome": "cavalo" }
  *   POST /api/animal     body JSON: { "animal": {...} }
  *
  * So funciona em desenvolvimento local. No GitHub Pages (estatico) nao ha
@@ -24,7 +27,14 @@ import { Buffer } from 'node:buffer';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { join, basename, extname } from 'node:path';
-import { downloadSound, saveAnimal, saveSoundBytes, SOUNDS_DIR } from './sound-lib.mjs';
+import {
+  downloadSound,
+  saveAnimal,
+  saveSoundBytes,
+  listSounds,
+  copySound,
+  SOUNDS_DIR,
+} from './sound-lib.mjs';
 
 const MIME = {
   '.mp3': 'audio/mpeg',
@@ -51,6 +61,13 @@ const server = createServer(async (req, res) => {
   // Pre-flight CORS
   if (req.method === 'OPTIONS') {
     sendJson(res, 204, {});
+    return;
+  }
+
+  // GET /api/sounds: lista os arquivos de audio ja existentes na pasta.
+  if (req.method === 'GET' && req.url === '/api/sounds') {
+    const sons = await listSounds();
+    sendJson(res, 200, { ok: true, sons });
     return;
   }
 
@@ -124,6 +141,11 @@ const server = createServer(async (req, res) => {
     '/api/animal': async (payload) => {
       const result = await saveAnimal(payload.animal);
       console.log(`[OK] animal "${result.animal.id}" salvo (total: ${result.total})`);
+      return result;
+    },
+    '/api/copy': async (payload) => {
+      const result = await copySound(payload.origem, payload.nome);
+      console.log(`[OK] som copiado para ${result.relativePath}`);
       return result;
     },
   };
