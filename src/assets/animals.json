@@ -31,5 +31,60 @@
     "y": 690,
     "size": 8,
     "message": "Hum hum!"
+  },
+  {
+    "id": "sapo",
+    "name": "Sapo",
+    "emoji": "🐸",
+    "bgClass": "bg-emerald-100",
+    "soundType": "croak",
+    "x": 801,
+    "y": 564,
+    "size": 8,
+    "message": "Ribit! Ribit!"
+  },
+  {
+    "id": "cachorro",
+    "name": "Cachorro",
+    "emoji": "🐶",
+    "bgClass": "bg-amber-100",
+    "soundType": "bark",
+    "x": 961,
+    "y": 317,
+    "size": 8,
+    "message": "Au! Au!"
+  },
+  {
+    "id": "leao",
+    "name": "Leão",
+    "emoji": "🦁",
+    "bgClass": "bg-amber-200",
+    "soundType": "roar",
+    "x": 2050,
+    "y": 545,
+    "size": 8,
+    "message": "Roar! Rawr!"
+  },
+  {
+    "id": "gato",
+    "name": "Gato",
+    "emoji": "🐱",
+    "bgClass": "bg-orange-100",
+    "soundType": "meow",
+    "x": 69,
+    "y": 600,
+    "size": 8,
+    "message": "Miau! Miau!"
+  },
+  {
+    "id": "arara",
+    "name": "Arara",
+    "emoji": "🦜",
+    "bgClass": "bg-red-100",
+    "soundType": "bird",
+    "x": 435,
+    "y": 442,
+    "size": 8,
+    "message": "Squawk! Lindo!"
   }
 ]
