@@ -226,16 +226,24 @@ export class JardimComponent implements OnInit, AfterViewInit {
 
   /**
    * Toca o arquivo de áudio do animal (src/assets/sounds/<id>.mp3).
-   * Se o arquivo não existir ou falhar ao tocar, cai no som sintetizado.
+   * Se o arquivo não existir ou falhar ao tocar, cai no som sintetizado
+   * (quando o animal tem um soundType). Animais novos nao tem soundType,
+   * entao dependem do arquivo .mp3.
    */
   playAnimalSound(animal: Animal) {
-    const audio = new Audio(`assets/sounds/${animal.id}.mp3`);
+    // Caminho absoluto a partir do <base href>, robusto com hash routing.
+    const src = new URL(`assets/sounds/${animal.id}.mp3`, document.baseURI).href;
+    const audio = new Audio(src);
     this.currentAudio = audio;
-    audio.play().catch(() => {
-      // Arquivo ausente ou bloqueado: usa o som gerado pela Web Audio API.
+
+    audio.play().catch((err) => {
+      console.warn(`[jardim] Nao consegui tocar ${src}:`, err?.message || err);
       this.currentAudio = null;
-      this.initAudio();
-      this.playSound(animal.soundType);
+      // So cai no som sintetizado se houver um soundType conhecido.
+      if (animal.soundType) {
+        this.initAudio();
+        this.playSound(animal.soundType);
+      }
     });
   }
 

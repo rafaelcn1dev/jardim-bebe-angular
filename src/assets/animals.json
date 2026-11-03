@@ -1,1 +1,13 @@
-[]
+[
+  {
+    "id": "cavalo",
+    "name": "Cavalo",
+    "emoji": "🐴",
+    "bgClass": "bg-purple-100",
+    "soundType": "",
+    "x": 1260,
+    "y": 250,
+    "size": 8,
+    "message": "Iiihaa!"
+  }
+]
