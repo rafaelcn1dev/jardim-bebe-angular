@@ -26,6 +26,17 @@ import { AnimalsService } from './animals.service';
         </p>
       </div>
 
+      <!-- Botao alternar dia/noite -->
+      <button
+        type="button"
+        (click)="alternarTema()"
+        [title]="isNight ? 'Mudar para o dia' : 'Mudar para a noite'"
+        [attr.aria-label]="isNight ? 'Mudar para o dia' : 'Mudar para a noite'"
+        class="absolute top-4 right-4 z-50 w-10 h-10 rounded-full bg-white/80 backdrop-blur-md shadow-lg border border-white/40 flex items-center justify-center text-xl hover:scale-110 transition"
+      >
+        {{ isNight ? '☀️' : '🌙' }}
+      </button>
+
       <!-- Scrollable / Draggable World Container -->
       <div 
         #world
@@ -153,13 +164,21 @@ import { AnimalsService } from './animals.service';
   `
 })
 export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
-  // Tema noturno: ativo das 18h as 6h, para reduzir o estimulo da crianca.
+  // Tema noturno: por padrao segue o horario (18h-6h), mas o usuario pode
+  // alternar manualmente pelo botao sol/lua.
   isNight = this.calcularNoite();
+  private temaManual = false; // true depois que o usuario clica no botao
   private temaTimer: ReturnType<typeof setInterval> | null = null;
 
   private calcularNoite(): boolean {
     const h = new Date().getHours();
     return h >= 18 || h < 6;
+  }
+
+  /** Alterna manualmente entre dia e noite (ignora o horario ate recarregar). */
+  alternarTema() {
+    this.isNight = !this.isNight;
+    this.temaManual = true;
   }
 
   worldWidth = 3000;
@@ -190,9 +209,10 @@ export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
     // Carrega base + extras (animals.json + localStorage).
     this.animals = await this.animalsService.loadAll();
 
-    // Reavalia o tema a cada minuto, para alternar sozinho ao cruzar 18h/6h.
+    // Reavalia o tema a cada minuto (alterna sozinho ao cruzar 18h/6h),
+    // a menos que o usuario tenha escolhido manualmente pelo botao.
     this.temaTimer = setInterval(() => {
-      this.isNight = this.calcularNoite();
+      if (!this.temaManual) this.isNight = this.calcularNoite();
     }, 60_000);
   }
 
