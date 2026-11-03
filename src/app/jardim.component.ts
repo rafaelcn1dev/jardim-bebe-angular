@@ -1,4 +1,4 @@
-import { Component, AfterViewInit, OnInit } from '@angular/core';
+import { Component, AfterViewInit, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Animal } from './animals';
@@ -9,14 +9,21 @@ import { AnimalsService } from './animals.service';
   standalone: true,
   imports: [CommonModule, RouterLink],
   template: `
-    <div class="relative w-screen h-screen overflow-hidden bg-gradient-to-b from-sky-300 via-sky-100 to-green-200 select-none">
-      
+    <div
+      class="relative w-screen h-screen overflow-hidden select-none transition-colors duration-1000"
+      [ngClass]="isNight
+        ? 'bg-gradient-to-b from-slate-900 via-indigo-900 to-slate-800'
+        : 'bg-gradient-to-b from-sky-300 via-sky-100 to-green-200'"
+    >
+
       <!-- Instructions / Header Overlay -->
       <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-white/80 backdrop-blur-md px-6 py-2 rounded-full shadow-lg border border-white/40 text-center pointer-events-none">
         <h1 class="text-xl font-bold text-green-700 drop-shadow-sm flex items-center gap-2">
-          🌳 Jardim Encantado dos Bichinhos 🐥
+          {{ isNight ? '🌙 Jardim Encantado dos Bichinhos 🌟' : '🌳 Jardim Encantado dos Bichinhos 🐥' }}
         </h1>
-        <p class="text-xs text-gray-600 font-medium">Arraste a tela para explorar o jardim e clique nos animais!</p>
+        <p class="text-xs text-gray-600 font-medium">
+          {{ isNight ? 'É hora de descansar... explore com calma o jardim adormecido.' : 'Arraste a tela para explorar o jardim e clique nos animais!' }}
+        </p>
       </div>
 
       <!-- Scrollable / Draggable World Container -->
@@ -37,11 +44,22 @@ import { AnimalsService } from './animals.service';
         
         <!-- Background Scenery Elements (Grass, Trees, Lake, Fence) -->
         <div class="absolute inset-0 pointer-events-none overflow-hidden">
-          <!-- Sky / Sun -->
-          <div class="absolute top-10 left-32 w-24 h-24 bg-yellow-300 rounded-full blur-sm opacity-90 animate-pulse"></div>
+          <!-- Sol (dia) -->
+          <div *ngIf="!isNight" class="absolute top-10 left-32 w-24 h-24 bg-yellow-300 rounded-full blur-sm opacity-90 animate-pulse"></div>
+
+          <!-- Lua + estrelas (noite) -->
+          <ng-container *ngIf="isNight">
+            <div class="absolute top-10 left-32 w-24 h-24 bg-slate-100 rounded-full blur-[2px] opacity-80 shadow-[0_0_40px_10px_rgba(226,232,240,0.5)]"></div>
+            <div class="absolute top-16 left-[700px] text-2xl opacity-80">⭐</div>
+            <div class="absolute top-8 left-[1200px] text-xl opacity-70">✨</div>
+            <div class="absolute top-24 left-[1800px] text-2xl opacity-80">⭐</div>
+            <div class="absolute top-12 left-[2400px] text-xl opacity-70">✨</div>
+            <div class="absolute top-28 left-[500px] text-lg opacity-60">⭐</div>
+          </ng-container>
 
           <!-- Rolling Hills / Background Greenery -->
-          <div class="absolute top-[30%] left-0 w-[3000px] h-[700px] bg-gradient-to-b from-emerald-300 to-green-600 rounded-[100%_100%_0_0]"></div>
+          <div class="absolute top-[30%] left-0 w-[3000px] h-[700px] rounded-[100%_100%_0_0] transition-colors duration-1000"
+            [ngClass]="isNight ? 'bg-gradient-to-b from-emerald-900 to-green-950' : 'bg-gradient-to-b from-emerald-300 to-green-600'"></div>
 
           <!-- Big Tree 1 (Top Left) -->
           <div class="absolute top-[200px] left-[150px] text-8xl opacity-90">🌳</div>
@@ -112,6 +130,9 @@ import { AnimalsService } from './animals.service';
 
       </div>
 
+      <!-- Veu noturno: reduz brilho/estimulo a noite (atras da UI) -->
+      <div *ngIf="isNight" class="absolute inset-0 z-40 pointer-events-none bg-indigo-950/30"></div>
+
       <!-- Footer / Reset View Button -->
       <div class="absolute bottom-4 right-4 z-50 flex gap-2">
         <a
@@ -131,7 +152,16 @@ import { AnimalsService } from './animals.service';
     </div>
   `
 })
-export class JardimComponent implements OnInit, AfterViewInit {
+export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
+  // Tema noturno: ativo das 18h as 6h, para reduzir o estimulo da crianca.
+  isNight = this.calcularNoite();
+  private temaTimer: ReturnType<typeof setInterval> | null = null;
+
+  private calcularNoite(): boolean {
+    const h = new Date().getHours();
+    return h >= 18 || h < 6;
+  }
+
   worldWidth = 3000;
   worldHeight = 1200;
   
@@ -159,6 +189,15 @@ export class JardimComponent implements OnInit, AfterViewInit {
   async ngOnInit() {
     // Carrega base + extras (animals.json + localStorage).
     this.animals = await this.animalsService.loadAll();
+
+    // Reavalia o tema a cada minuto, para alternar sozinho ao cruzar 18h/6h.
+    this.temaTimer = setInterval(() => {
+      this.isNight = this.calcularNoite();
+    }, 60_000);
+  }
+
+  ngOnDestroy() {
+    if (this.temaTimer) clearInterval(this.temaTimer);
   }
 
   ngAfterViewInit() {
