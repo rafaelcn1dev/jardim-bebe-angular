@@ -231,19 +231,31 @@ export class JardimComponent implements OnInit, AfterViewInit {
    * entao dependem do arquivo .mp3.
    */
   playAnimalSound(animal: Animal) {
-    // Caminho absoluto a partir do <base href>, robusto com hash routing.
-    const src = new URL(`assets/sounds/${animal.id}.mp3`, document.baseURI).href;
+    // 1) Caminho normal (assets servidos pelo build / ng serve).
+    const principal = new URL(`assets/sounds/${animal.id}.mp3`, document.baseURI).href;
+    // 2) Fallback: servidor local de sons (serve ate os arquivos recem-criados,
+    //    que o `ng serve` so passa a servir depois de reiniciar).
+    const fallback = `http://localhost:4300/sounds/${animal.id}.mp3`;
+
+    this.tocarArquivo(principal, () => {
+      this.tocarArquivo(fallback, () => {
+        // Nenhuma fonte tocou: usa som sintetizado se houver soundType.
+        if (animal.soundType) {
+          this.initAudio();
+          this.playSound(animal.soundType);
+        }
+      });
+    });
+  }
+
+  /** Tenta tocar uma URL de audio; chama onFail() se nao conseguir. */
+  private tocarArquivo(src: string, onFail: () => void) {
     const audio = new Audio(src);
     this.currentAudio = audio;
-
     audio.play().catch((err) => {
       console.warn(`[jardim] Nao consegui tocar ${src}:`, err?.message || err);
-      this.currentAudio = null;
-      // So cai no som sintetizado se houver um soundType conhecido.
-      if (animal.soundType) {
-        this.initAudio();
-        this.playSound(animal.soundType);
-      }
+      if (this.currentAudio === audio) this.currentAudio = null;
+      onFail();
     });
   }
 

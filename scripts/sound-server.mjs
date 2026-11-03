@@ -21,7 +21,18 @@
 import { createServer } from 'node:http';
 import process from 'node:process';
 import { Buffer } from 'node:buffer';
-import { downloadSound, saveAnimal, saveSoundBytes } from './sound-lib.mjs';
+import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
+import { join, basename, extname } from 'node:path';
+import { downloadSound, saveAnimal, saveSoundBytes, SOUNDS_DIR } from './sound-lib.mjs';
+
+const MIME = {
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+};
 
 const PORT = Number(process.env.SOUND_SERVER_PORT) || 4300;
 
@@ -40,6 +51,36 @@ const server = createServer(async (req, res) => {
   // Pre-flight CORS
   if (req.method === 'OPTIONS') {
     sendJson(res, 204, {});
+    return;
+  }
+
+  // GET /sounds/<arquivo>: serve os audios direto do disco (inclusive os
+  // recem-criados, que o `ng serve` so passa a servir apos reiniciar).
+  if (req.method === 'GET' && req.url.startsWith('/sounds/')) {
+    const nomeArquivo = basename(decodeURIComponent(req.url.replace('/sounds/', '').split('?')[0]));
+    const ext = extname(nomeArquivo).toLowerCase();
+    const caminho = join(SOUNDS_DIR, nomeArquivo);
+
+    // So serve de dentro de SOUNDS_DIR e extensoes de audio conhecidas.
+    if (!MIME[ext] || !caminho.startsWith(SOUNDS_DIR)) {
+      res.writeHead(404, { 'Access-Control-Allow-Origin': '*' });
+      res.end('not found');
+      return;
+    }
+
+    try {
+      const info = await stat(caminho);
+      res.writeHead(200, {
+        'Content-Type': MIME[ext],
+        'Content-Length': info.size,
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-cache',
+      });
+      createReadStream(caminho).pipe(res);
+    } catch {
+      res.writeHead(404, { 'Access-Control-Allow-Origin': '*' });
+      res.end('not found');
+    }
     return;
   }
 

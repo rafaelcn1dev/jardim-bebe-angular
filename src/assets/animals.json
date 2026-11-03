@@ -9,5 +9,16 @@
     "y": 250,
     "size": 8,
     "message": "Iiihaa!"
+  },
+  {
+    "id": "macaco",
+    "name": "Macaco",
+    "emoji": "🐵",
+    "bgClass": "bg-indigo-100",
+    "soundType": "",
+    "x": 300,
+    "y": 690,
+    "size": 8,
+    "message": "Uh uh ah ah!"
   }
 ]
