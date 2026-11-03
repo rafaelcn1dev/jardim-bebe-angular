@@ -32,6 +32,22 @@ type Origem = 'link' | 'upload' | 'padrao';
           </p>
         </div>
 
+        <!-- Status do servidor local -->
+        <div *ngIf="servidorOnline === false"
+          class="mb-4 rounded-xl bg-red-50 border border-red-300 px-4 py-3 text-sm text-red-800">
+          <p class="font-bold">Servidor de sons offline</p>
+          <p class="mt-1">
+            Pare o terminal atual e rode <code>npm start</code> de novo — ele sobe o app
+            <strong>e</strong> o servidor de sons juntos. Depois clique em
+            <button type="button" (click)="verificarServidor()" class="font-bold underline">verificar novamente</button>.
+          </p>
+          <p class="mt-1 text-xs text-red-600">(No GitHub Pages este recurso não funciona, pois não há servidor.)</p>
+        </div>
+        <div *ngIf="servidorOnline === null"
+          class="mb-4 rounded-xl bg-gray-50 border border-gray-200 px-4 py-2 text-xs text-gray-500">
+          Verificando servidor de sons...
+        </div>
+
         <form (ngSubmit)="salvar()" class="space-y-4">
 
           <!-- Seletor de animal -->
@@ -144,11 +160,10 @@ type Origem = 'link' | 'upload' | 'padrao';
                 <button type="button" (click)="recarregarSons()" title="Atualizar lista"
                   class="rounded-xl bg-gray-100 text-gray-700 px-3 py-2 font-bold">🔄</button>
               </div>
-              <p *ngIf="sonsDisponiveis.length === 0" class="text-xs text-amber-700 mt-1">
-                Nenhum som listado. O servidor de sons pode não estar no ar — rode
-                <code>npm start</code> e clique em 🔄.
+              <p *ngIf="servidorOnline && sonsDisponiveis.length === 0" class="text-xs text-amber-700 mt-1">
+                Nenhum som na pasta ainda. Baixe ou envie um primeiro.
               </p>
-              <p *ngIf="sonsDisponiveis.length > 0" class="text-xs text-gray-500 mt-1">
+              <p *ngIf="servidorOnline && sonsDisponiveis.length > 0" class="text-xs text-gray-500 mt-1">
                 {{ sonsDisponiveis.length }} som(ns) disponível(is). Clique ▶️ para ouvir.
               </p>
             </div>
@@ -205,6 +220,9 @@ export class BaixarComponent implements OnInit {
   somPadrao = '';
   sonsDisponiveis: string[] = [];
 
+  // Estado do servidor local: null = verificando, true/false = resultado.
+  servidorOnline: boolean | null = null;
+
   carregando = false;
   resultado: Resultado | null = null;
 
@@ -212,20 +230,32 @@ export class BaixarComponent implements OnInit {
 
   async ngOnInit() {
     await this.recarregar();
-    await this.recarregarSons();
+    await this.verificarServidor();
   }
 
-  /** Troca a origem do som; ao entrar em "padrao" atualiza a lista de sons. */
-  selecionarOrigem(o: Origem) {
-    this.origem = o;
-    if (o === 'padrao' && this.sonsDisponiveis.length === 0) {
-      this.recarregarSons();
+  /** Checa UMA vez se o servidor de sons esta no ar e, se estiver, lista os sons. */
+  async verificarServidor() {
+    this.servidorOnline = null;
+    try {
+      const resp = await fetch(`${SOUND_SERVER}/api/sounds`, { signal: AbortSignal.timeout(2500) });
+      if (!resp.ok) throw new Error();
+      const data = await resp.json();
+      this.sonsDisponiveis = Array.isArray(data.sons) ? data.sons : [];
+      this.servidorOnline = true;
+    } catch {
+      this.servidorOnline = false;
+      this.sonsDisponiveis = [];
     }
   }
 
-  /** Busca de novo a lista de sons no servidor local. */
+  /** Troca a origem do som. */
+  selecionarOrigem(o: Origem) {
+    this.origem = o;
+  }
+
+  /** Reverifica servidor + recarrega a lista de sons (botao 🔄). */
   async recarregarSons() {
-    this.sonsDisponiveis = await this.animalsService.listSounds(SOUND_SERVER);
+    await this.verificarServidor();
   }
 
   private async recarregar() {
@@ -281,6 +311,7 @@ export class BaixarComponent implements OnInit {
 
   botaoDesabilitado(): boolean {
     if (this.carregando) return true;
+    if (this.servidorOnline === false) return true;
 
     const editando = this.selecao !== '__novo__';
 
