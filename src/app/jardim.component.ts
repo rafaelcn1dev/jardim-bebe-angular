@@ -41,16 +41,18 @@ import { AnimalsService } from './animals.service';
       <div 
         #world
         class="absolute cursor-grab active:cursor-grabbing transition-transform duration-75 ease-out"
+        style="transform-origin: 0 0; touch-action: none;"
         [style.width.px]="worldWidth"
         [style.height.px]="worldHeight"
-        [style.transform]="'translate(' + posX + 'px, ' + posY + 'px)'"
+        [style.transform]="'translate(' + posX + 'px, ' + posY + 'px) scale(' + scale + ')'"
         (mousedown)="startDrag($event)"
         (mousemove)="onDrag($event)"
         (mouseup)="endDrag()"
         (mouseleave)="endDrag()"
+        (wheel)="onWheel($event)"
         (touchstart)="startTouch($event)"
         (touchmove)="onTouchMove($event)"
-        (touchend)="endDrag()"
+        (touchend)="endTouch($event)"
       >
 
       <!-- Faixa repetida 3x (esquerda/centro/direita) para o efeito "globo" -->
@@ -152,6 +154,14 @@ import { AnimalsService } from './animals.service';
       <!-- Veu noturno: reduz brilho/estimulo a noite (atras da UI) -->
       <div *ngIf="isNight" class="absolute inset-0 z-40 pointer-events-none bg-indigo-950/30"></div>
 
+      <!-- Controles de zoom -->
+      <div class="absolute bottom-4 left-4 z-50 flex flex-col gap-2">
+        <button type="button" (click)="zoomIn()" title="Aproximar" aria-label="Aproximar"
+          class="w-11 h-11 rounded-full bg-white/90 hover:bg-white text-green-800 font-black text-2xl shadow-lg border border-green-200 flex items-center justify-center transition">+</button>
+        <button type="button" (click)="zoomOut()" title="Afastar" aria-label="Afastar"
+          class="w-11 h-11 rounded-full bg-white/90 hover:bg-white text-green-800 font-black text-2xl shadow-lg border border-green-200 flex items-center justify-center transition">−</button>
+      </div>
+
       <!-- Footer / Reset View Button -->
       <div class="absolute bottom-4 right-4 z-50 flex gap-2">
         <a
@@ -220,6 +230,14 @@ export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
   // Faixas para o efeito "globo" (conteudo repetido a esquerda/centro/direita).
   readonly faixas = [-1, 0, 1];
 
+  // Zoom do mundo.
+  scale = 1;
+  private readonly MIN_SCALE = 0.4;
+  private readonly MAX_SCALE = 2.5;
+  // Estado do gesto de pinca (dois dedos).
+  private pinchStartDist = 0;
+  private pinchStartScale = 1;
+
   constructor(private animalsService: AnimalsService) {}
 
   async ngOnInit() {
@@ -284,11 +302,12 @@ export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
   /** Move o animal seguindo o ponteiro; acumula distancia para diferenciar clique. */
   private moverAnimal(clientX: number, clientY: number) {
     if (!this.animalArrastado) return;
-    const dx = clientX - this.dragAnimalStart.mx;
-    const dy = clientY - this.dragAnimalStart.my;
-    this.animalMoveuPx = Math.max(this.animalMoveuPx, Math.hypot(dx, dy));
-    this.animalArrastado.x = this.dragAnimalStart.ax + dx;
-    this.animalArrastado.y = this.dragAnimalStart.ay + dy;
+    const dxTela = clientX - this.dragAnimalStart.mx;
+    const dyTela = clientY - this.dragAnimalStart.my;
+    this.animalMoveuPx = Math.max(this.animalMoveuPx, Math.hypot(dxTela, dyTela));
+    // Converte o deslocamento de tela para o espaco do mundo (compensa o zoom).
+    this.animalArrastado.x = this.dragAnimalStart.ax + dxTela / this.scale;
+    this.animalArrastado.y = this.dragAnimalStart.ay + dyTela / this.scale;
   }
 
   /** Finaliza: se mal se moveu, trata como clique (toca som); senao, salva posicao. */
@@ -573,6 +592,14 @@ export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   startTouch(e: TouchEvent) {
+    if (e.touches.length === 2) {
+      // Inicia pinca: interrompe qualquer pan/arraste em andamento.
+      this.isDragging = false;
+      this.animalArrastado = null;
+      this.pinchStartDist = this.distanciaEntreToques(e);
+      this.pinchStartScale = this.scale;
+      return;
+    }
     if (this.animalArrastado) return;
     if (e.touches.length === 1) {
       this.isDragging = true;
@@ -582,6 +609,14 @@ export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   onTouchMove(e: TouchEvent) {
+    // Pinca com dois dedos -> zoom.
+    if (e.touches.length === 2 && this.pinchStartDist > 0) {
+      e.preventDefault();
+      const dist = this.distanciaEntreToques(e);
+      const razao = dist / this.pinchStartDist;
+      this.aplicarZoom(this.pinchStartScale * razao);
+      return;
+    }
     if (this.animalArrastado && e.touches.length === 1) {
       this.moverAnimal(e.touches[0].clientX, e.touches[0].clientY);
       return;
@@ -589,6 +624,20 @@ export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!this.isDragging || e.touches.length !== 1) return;
     this.posX = this.wrapX(e.touches[0].clientX - this.startX);
     this.posY = e.touches[0].clientY - this.startY;
+  }
+
+  endTouch(e: TouchEvent) {
+    // Ao soltar um dos dedos da pinca, encerra o gesto de zoom.
+    if (e.touches.length < 2) {
+      this.pinchStartDist = 0;
+    }
+    this.endDrag();
+  }
+
+  private distanciaEntreToques(e: TouchEvent): number {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    return Math.hypot(dx, dy);
   }
 
   /**
@@ -599,5 +648,26 @@ export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
     const w = this.worldWidth;
     // Resultado em (-w, 0]
     return ((x % w) - w) % w;
+  }
+
+  // --- Zoom ---
+
+  private aplicarZoom(novo: number) {
+    this.scale = Math.min(this.MAX_SCALE, Math.max(this.MIN_SCALE, novo));
+  }
+
+  zoomIn() {
+    this.aplicarZoom(this.scale * 1.2);
+  }
+
+  zoomOut() {
+    this.aplicarZoom(this.scale / 1.2);
+  }
+
+  /** Zoom com a roda do mouse (desktop). */
+  onWheel(e: WheelEvent) {
+    e.preventDefault();
+    const fator = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+    this.aplicarZoom(this.scale * fator);
   }
 }
