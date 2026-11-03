@@ -45,14 +45,16 @@ Fontes de áudio livres recomendadas (procure o botão de download direto `.mp3`
 > Não use links do YouTube nem áudio protegido por direitos autorais — o script
 > recusa URLs do YouTube de propósito.
 
-## Baixar pela página /baixar (interface visual)
+## Baixar/enviar pela página /baixar (interface visual)
 
 Além da linha de comando, há uma página com formulário:
 
-1. Em um terminal: `npm run sound-server` (deixe aberto — é o servidor que grava o arquivo).
-2. Em outro terminal: `npm start`.
-3. Abra `http://localhost:4200/#/baixar` (ou clique em "🎵 Baixar sons" no jardim).
-4. Cole o link direto `.mp3` e o nome do animal, e clique em baixar.
+1. Rode `npm start` — ele já sobe o app **e** o servidor de sons juntos
+   (via `concurrently`). Não precisa mais iniciar o servidor à parte.
+2. Abra `http://localhost:4200/#/baixar` (ou clique em "🎵 Baixar sons" no jardim).
+3. Escolha o animal (ou crie um novo) e adicione o som de duas formas:
+   - **🔗 Link**: cole um link direto `.mp3` de uma fonte livre.
+   - **📁 Enviar arquivo**: selecione um `.mp3`/`.wav` do seu computador.
 
 O arquivo é gravado em `src/assets/sounds/<nome>.mp3`.
 

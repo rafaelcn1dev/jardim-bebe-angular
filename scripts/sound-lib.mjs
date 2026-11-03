@@ -17,7 +17,7 @@ import { Readable } from 'node:stream';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const SOUNDS_DIR = resolve(__dirname, '..', 'src', 'assets', 'sounds');
 
-const EXT_PERMITIDAS = ['.mp3', '.wav', '.ogg', '.m4a', '.aac'];
+export const EXT_PERMITIDAS = ['.mp3', '.wav', '.ogg', '.m4a', '.aac'];
 
 export function sanitizarNome(nome) {
   return String(nome)
@@ -163,4 +163,45 @@ export async function saveAnimal(animal) {
   await writeFile(ANIMALS_JSON, JSON.stringify(semDuplicado, null, 2) + '\n', 'utf8');
 
   return { animal: registro, total: semDuplicado.length };
+}
+
+// ---------------------------------------------------------------------------
+// Upload: grava bytes de um arquivo enviado pelo usuario em src/assets/sounds/
+// ---------------------------------------------------------------------------
+
+/**
+ * Salva um buffer de audio enviado por upload.
+ * @param {Buffer} buffer  bytes do arquivo
+ * @param {string} nomeBruto  nome/id do animal
+ * @param {string} nomeArquivoOriginal  nome original (para extrair a extensao)
+ */
+export async function saveSoundBytes(buffer, nomeBruto, nomeArquivoOriginal = '') {
+  if (!buffer || buffer.length === 0) {
+    throw new Error('Arquivo vazio.');
+  }
+  // Limite simples: 15 MB
+  if (buffer.length > 15 * 1024 * 1024) {
+    throw new Error('Arquivo muito grande (limite 15 MB).');
+  }
+
+  const nome = sanitizarNome(nomeBruto);
+  if (!nome) throw new Error('Nome invalido apos normalizacao.');
+
+  const m = String(nomeArquivoOriginal).toLowerCase().match(/\.(mp3|wav|ogg|m4a|aac)$/);
+  const ext = m ? `.${m[1]}` : '.mp3';
+  if (!EXT_PERMITIDAS.includes(ext)) {
+    throw new Error(`Extensao ${ext} nao suportada. Use: ${EXT_PERMITIDAS.join(', ')}`);
+  }
+
+  const fileName = `${nome}${ext}`;
+  const absolutePath = join(SOUNDS_DIR, fileName);
+
+  await mkdir(SOUNDS_DIR, { recursive: true });
+  await writeFile(absolutePath, buffer);
+
+  return {
+    fileName,
+    relativePath: `assets/sounds/${fileName}`,
+    absolutePath,
+  };
 }

@@ -9,8 +9,10 @@
  * Uso (em um terminal separado, junto com `npm start`):
  *   npm run sound-server
  *
- * Endpoint:
+ * Endpoints:
  *   POST /api/download   body JSON: { "url": "...", "nome": "gato" }
+ *   POST /api/upload?nome=gato&arquivo=som.mp3   body: bytes do arquivo
+ *   POST /api/animal     body JSON: { "animal": {...} }
  *
  * So funciona em desenvolvimento local. No GitHub Pages (estatico) nao ha
  * backend, entao a pagina avisa que o recurso esta indisponivel.
@@ -18,7 +20,8 @@
 
 import { createServer } from 'node:http';
 import process from 'node:process';
-import { downloadSound, saveAnimal } from './sound-lib.mjs';
+import { Buffer } from 'node:buffer';
+import { downloadSound, saveAnimal, saveSoundBytes } from './sound-lib.mjs';
 
 const PORT = Number(process.env.SOUND_SERVER_PORT) || 4300;
 
@@ -37,6 +40,37 @@ const server = createServer(async (req, res) => {
   // Pre-flight CORS
   if (req.method === 'OPTIONS') {
     sendJson(res, 204, {});
+    return;
+  }
+
+  // Upload de arquivo (corpo binario). Nome e nome-original vem na query string.
+  // Ex.: POST /api/upload?nome=gato&arquivo=meu-som.mp3
+  if (req.method === 'POST' && req.url.startsWith('/api/upload')) {
+    const url = new URL(req.url, `http://localhost:${PORT}`);
+    const nome = url.searchParams.get('nome') || '';
+    const arquivo = url.searchParams.get('arquivo') || '';
+
+    const chunks = [];
+    let tamanho = 0;
+    req.on('data', (chunk) => {
+      tamanho += chunk.length;
+      if (tamanho > 15 * 1024 * 1024) {
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', async () => {
+      try {
+        const buffer = Buffer.concat(chunks);
+        const result = await saveSoundBytes(buffer, nome, arquivo);
+        console.log(`[OK] upload ${result.relativePath}`);
+        sendJson(res, 200, { ok: true, ...result });
+      } catch (err) {
+        console.error(`[ERRO] ${err.message}`);
+        sendJson(res, 400, { ok: false, error: err.message });
+      }
+    });
     return;
   }
 
@@ -84,8 +118,17 @@ const server = createServer(async (req, res) => {
   sendJson(res, 404, { ok: false, error: 'Rota nao encontrada.' });
 });
 
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.log(`[sons] Porta ${PORT} ja em uso. Provavelmente o servidor de sons ja esta rodando — ok, seguindo.`);
+    // Nao derruba o `npm start`: o Angular continua servindo normalmente.
+    return;
+  }
+  console.error('[sons] Erro no servidor de sons:', err.message);
+});
+
 server.listen(PORT, () => {
   console.log(`Servidor de sons ouvindo em http://localhost:${PORT}`);
-  console.log('Endpoint: POST /api/download  { url, nome }');
-  console.log('Deixe este terminal aberto enquanto usa a pagina /baixar.');
+  console.log('Endpoints: POST /api/download | /api/upload | /api/animal');
+  console.log('Iniciado junto com o app (npm start).');
 });

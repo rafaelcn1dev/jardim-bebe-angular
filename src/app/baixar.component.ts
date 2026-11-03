@@ -109,25 +109,60 @@ interface Resultado {
             </div>
           </div>
 
-          <!-- Link do audio -->
+          <!-- Origem do som: link ou upload -->
           <div>
-            <label class="block text-sm font-bold text-gray-700 mb-1">Link do áudio (.mp3)</label>
-            <input
-              type="url"
-              name="url"
-              [(ngModel)]="url"
-              required
-              placeholder="https://.../som.mp3"
-              class="w-full rounded-xl border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
-            />
-            <p class="text-xs text-gray-500 mt-1">
-              Link <strong>direto</strong> de áudio. Fontes livres: Pixabay, Mixkit, Freesound (CC0).
-            </p>
+            <label class="block text-sm font-bold text-gray-700 mb-1">Som do animal</label>
+            <div class="flex gap-2 mb-2">
+              <button
+                type="button"
+                (click)="origem = 'link'"
+                [ngClass]="origem === 'link' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'"
+                class="flex-1 rounded-xl px-3 py-1.5 text-sm font-bold transition"
+              >
+                🔗 Link
+              </button>
+              <button
+                type="button"
+                (click)="origem = 'upload'"
+                [ngClass]="origem === 'upload' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'"
+                class="flex-1 rounded-xl px-3 py-1.5 text-sm font-bold transition"
+              >
+                📁 Enviar arquivo
+              </button>
+            </div>
+
+            <!-- Modo link -->
+            <div *ngIf="origem === 'link'">
+              <input
+                type="url"
+                name="url"
+                [(ngModel)]="url"
+                placeholder="https://.../som.mp3"
+                class="w-full rounded-xl border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+              <p class="text-xs text-gray-500 mt-1">
+                Link <strong>direto</strong> de áudio. Fontes livres: Pixabay, Mixkit, Freesound (CC0).
+              </p>
+            </div>
+
+            <!-- Modo upload -->
+            <div *ngIf="origem === 'upload'">
+              <input
+                type="file"
+                name="arquivo"
+                accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac"
+                (change)="aoSelecionarArquivo($event)"
+                class="w-full text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-green-100 file:px-3 file:py-1.5 file:text-green-800 file:font-bold hover:file:bg-green-200"
+              />
+              <p class="text-xs text-gray-500 mt-1">
+                Envie um arquivo <code>.mp3</code>, <code>.wav</code> ou <code>.ogg</code> do seu computador (até 15 MB).
+              </p>
+            </div>
           </div>
 
           <button
             type="submit"
-            [disabled]="carregando || !url || (selecao === '__novo__' && (!novoNome || !novoEmoji) && escolhaCatalogo === '__custom__') || (selecao === '__novo__' && escolhaCatalogo !== '__custom__' && disponiveis.length === 0)"
+            [disabled]="botaoDesabilitado()"
             class="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl shadow-lg transition flex items-center justify-center gap-2"
           >
             <span *ngIf="!carregando">⬇️ Salvar</span>
@@ -148,8 +183,8 @@ interface Resultado {
 
         <div class="mt-6 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-1">
           <p class="font-bold text-gray-600">Como usar:</p>
-          <p>1. Em um terminal, rode <code>npm run sound-server</code> (deixe aberto).</p>
-          <p>2. Em outro, rode <code>npm start</code> e abra esta página.</p>
+          <p>Rode <code>npm start</code> — ele já inicia o app e o servidor de sons juntos.</p>
+          <p>Fontes de áudio livres: Pixabay, Mixkit, Freesound (CC0).</p>
           <p class="text-amber-700">
             Links do YouTube não são aceitos (Termos de Serviço + direitos autorais).
           </p>
@@ -177,11 +212,38 @@ export class BaixarComponent implements OnInit {
   novoEmoji = '';
   novaMensagem = '';
 
+  // Origem do som: por link direto ou upload de arquivo local
+  origem: 'link' | 'upload' = 'link';
   url = '';
+  arquivo: File | null = null;
+
   carregando = false;
   resultado: Resultado | null = null;
 
   constructor(private animalsService: AnimalsService) {}
+
+  aoSelecionarArquivo(event: Event) {
+    const input = event.target as HTMLInputElement;
+    this.arquivo = input.files && input.files.length ? input.files[0] : null;
+  }
+
+  /** Botao fica desabilitado se faltar som ou dados do animal novo. */
+  botaoDesabilitado(): boolean {
+    if (this.carregando) return true;
+
+    // Precisa de um som: link preenchido OU arquivo selecionado.
+    const semSom = this.origem === 'link' ? !this.url : !this.arquivo;
+    if (semSom) return true;
+
+    // Para animal novo, valida os dados conforme o modo.
+    if (this.selecao === '__novo__') {
+      if (this.escolhaCatalogo === '__custom__') {
+        return !this.novoNome || !this.novoEmoji;
+      }
+      return this.disponiveis.length === 0;
+    }
+    return false;
+  }
 
   async ngOnInit() {
     await this.recarregar();
@@ -252,9 +314,15 @@ export class BaixarComponent implements OnInit {
         id = this.selecao;
       }
 
-      // 1. Baixa o som com o id como nome do arquivo.
-      const resSom = await this.postJson('/api/download', { url: this.url, nome: id });
-      if (!resSom.ok) throw new Error(resSom.error || 'Falha ao baixar o áudio.');
+      // 1. Obtem o som: por link (download) ou por upload de arquivo.
+      let resSom: any;
+      if (this.origem === 'upload') {
+        if (!this.arquivo) throw new Error('Selecione um arquivo de áudio.');
+        resSom = await this.uploadArquivo(id, this.arquivo);
+      } else {
+        resSom = await this.postJson('/api/download', { url: this.url, nome: id });
+      }
+      if (!resSom.ok) throw new Error(resSom.error || 'Falha ao obter o áudio.');
 
       // 2. Se for animal novo, registra no animals.json e no localStorage.
       if (animalData) {
@@ -271,6 +339,7 @@ export class BaixarComponent implements OnInit {
           : `Som salvo para "${id}". Volte ao jardim e clique no animal para ouvir.`,
       };
       this.url = '';
+      this.arquivo = null;
 
       // Recarrega a lista (remove o animal recem-criado do catalogo de disponiveis).
       if (animalData) {
@@ -281,7 +350,7 @@ export class BaixarComponent implements OnInit {
         tipo: 'erro',
         texto:
           (err as Error).message ||
-          'Não foi possível concluir. Rode "npm run sound-server" em um terminal. ' +
+          'Não foi possível concluir. Rode "npm start" (ele já sobe o servidor de sons). ' +
             '(No GitHub Pages este recurso não funciona, pois não há servidor.)',
       };
     } finally {
@@ -299,7 +368,24 @@ export class BaixarComponent implements OnInit {
       return await resp.json();
     } catch {
       throw new Error(
-        'Não foi possível falar com o servidor local. Rode "npm run sound-server" em um terminal.'
+        'Não foi possível falar com o servidor local. Rode "npm start" para iniciá-lo junto com o app.'
+      );
+    }
+  }
+
+  /** Envia os bytes do arquivo escolhido para o servidor local gravar. */
+  private async uploadArquivo(id: string, file: File): Promise<any> {
+    try {
+      const params = new URLSearchParams({ nome: id, arquivo: file.name });
+      const resp = await fetch(`${SOUND_SERVER}/api/upload?${params.toString()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: file,
+      });
+      return await resp.json();
+    } catch {
+      throw new Error(
+        'Não foi possível falar com o servidor local. Rode "npm start" para iniciá-lo junto com o app.'
       );
     }
   }
