@@ -44,7 +44,7 @@ type Origem = 'link' | 'upload' | 'padrao';
               class="w-full rounded-xl border border-gray-300 px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="__novo__">➕ Criar novo animal</option>
-              <option *ngFor="let a of animais" [value]="a.id">✏️ Editar {{ a.emoji }} {{ a.name }}</option>
+              <option *ngFor="let a of animais" [value]="a.id">✏️ {{ a.emoji }} {{ a.name }}</option>
             </select>
           </div>
 
@@ -105,13 +105,13 @@ type Origem = 'link' | 'upload' | 'padrao';
           <div>
             <label class="block text-sm font-bold text-gray-700 mb-1">Som do animal</label>
             <div class="grid grid-cols-3 gap-2 mb-2">
-              <button type="button" (click)="origem = 'link'"
+              <button type="button" (click)="selecionarOrigem('link')"
                 [ngClass]="origem === 'link' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'"
                 class="rounded-xl px-2 py-1.5 text-sm font-bold transition">🔗 Link</button>
-              <button type="button" (click)="origem = 'upload'"
+              <button type="button" (click)="selecionarOrigem('upload')"
                 [ngClass]="origem === 'upload' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'"
                 class="rounded-xl px-2 py-1.5 text-sm font-bold transition">📁 Upload</button>
-              <button type="button" (click)="origem = 'padrao'"
+              <button type="button" (click)="selecionarOrigem('padrao')"
                 [ngClass]="origem === 'padrao' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'"
                 class="rounded-xl px-2 py-1.5 text-sm font-bold transition">🔈 Padrão</button>
             </div>
@@ -132,16 +132,25 @@ type Origem = 'link' | 'upload' | 'padrao';
 
             <!-- Modo som padrao (reaproveita um arquivo existente) -->
             <div *ngIf="origem === 'padrao'">
-              <select name="somPadrao" [(ngModel)]="somPadrao"
-                class="w-full rounded-xl border border-gray-300 px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-green-400">
-                <option *ngIf="selecao !== '__novo__'" value="">— manter o som atual —</option>
-                <option *ngFor="let s of sonsDisponiveis" [value]="s">{{ s }}</option>
-              </select>
+              <div class="flex gap-2">
+                <select name="somPadrao" [(ngModel)]="somPadrao"
+                  class="flex-1 rounded-xl border border-gray-300 px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-green-400">
+                  <option *ngIf="selecao !== '__novo__'" value="">— manter o som atual —</option>
+                  <option *ngFor="let s of sonsDisponiveis" [value]="s">{{ s }}</option>
+                </select>
+                <button type="button" (click)="ouvirPreview()" [disabled]="!somPadrao"
+                  title="Ouvir"
+                  class="rounded-xl bg-green-100 text-green-800 px-3 py-2 font-bold disabled:opacity-40">▶️</button>
+                <button type="button" (click)="recarregarSons()" title="Atualizar lista"
+                  class="rounded-xl bg-gray-100 text-gray-700 px-3 py-2 font-bold">🔄</button>
+              </div>
               <p *ngIf="sonsDisponiveis.length === 0" class="text-xs text-amber-700 mt-1">
-                Nenhum som encontrado. Rode <code>npm start</code> para o servidor de sons listar os arquivos.
+                Nenhum som listado. O servidor de sons pode não estar no ar — rode
+                <code>npm start</code> e clique em 🔄.
               </p>
-              <button *ngIf="somPadrao" type="button" (click)="ouvirPreview()"
-                class="mt-2 text-xs font-bold text-green-700 hover:underline">▶️ Ouvir "{{ somPadrao }}"</button>
+              <p *ngIf="sonsDisponiveis.length > 0" class="text-xs text-gray-500 mt-1">
+                {{ sonsDisponiveis.length }} som(ns) disponível(is). Clique ▶️ para ouvir.
+              </p>
             </div>
           </div>
 
@@ -203,6 +212,19 @@ export class BaixarComponent implements OnInit {
 
   async ngOnInit() {
     await this.recarregar();
+    await this.recarregarSons();
+  }
+
+  /** Troca a origem do som; ao entrar em "padrao" atualiza a lista de sons. */
+  selecionarOrigem(o: Origem) {
+    this.origem = o;
+    if (o === 'padrao' && this.sonsDisponiveis.length === 0) {
+      this.recarregarSons();
+    }
+  }
+
+  /** Busca de novo a lista de sons no servidor local. */
+  async recarregarSons() {
     this.sonsDisponiveis = await this.animalsService.listSounds(SOUND_SERVER);
   }
 
@@ -249,7 +271,12 @@ export class BaixarComponent implements OnInit {
   ouvirPreview() {
     if (!this.somPadrao) return;
     const src = `${SOUND_SERVER}/sounds/${this.somPadrao}`;
-    new Audio(src).play().catch(() => {});
+    new Audio(src).play().catch(() => {
+      this.resultado = {
+        tipo: 'erro',
+        texto: 'Não consegui tocar o som. O servidor de sons está no ar? (rode "npm start")',
+      };
+    });
   }
 
   botaoDesabilitado(): boolean {
