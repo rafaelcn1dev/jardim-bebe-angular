@@ -36,3 +36,6 @@ Thumbs.db
 # Logs
 /*.log
 logs/
+
+# Kiro MCP config (contém token do Render)
+.kiro/settings/mcp.json
