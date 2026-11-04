@@ -90,12 +90,12 @@
   {
     "id": "foca",
     "name": "Foca",
-    "emoji": "F",
+    "emoji": "🦭",
     "bgClass": "bg-lime-100",
     "soundType": "",
     "x": 300,
     "y": 250,
     "size": 8,
-    "message": "On On On!!"
+    "message": "On on on!"
   }
 ]
