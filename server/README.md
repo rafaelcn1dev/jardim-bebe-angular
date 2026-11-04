@@ -24,6 +24,7 @@ de graça.
 | `GITHUB_REPO` | sim | `usuario/repositorio`, ex.: `rafaelcn1dev/jardim-bebe-angular`. |
 | `GITHUB_BRANCH` | não | Branch de destino. Padrão: `main`. |
 | `ALLOWED_ORIGIN` | recomendada | Origem do frontend para CORS, ex.: `https://jardim-bebe-angular.onrender.com`. Padrão: `*`. |
+| `FRONTEND_DEPLOY_HOOK` | recomendada | Deploy Hook do site estático (frontend) no Render. Quando definido, o backend força o redeploy do frontend após cada mudança, garantindo a sincronização mesmo que o webhook automático do GitHub não dispare. |
 | `PORT` | não | O Render injeta automaticamente. |
 
 ## Rodar localmente (opcional)

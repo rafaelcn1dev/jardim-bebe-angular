@@ -41,6 +41,27 @@ const PORT = Number(process.env.PORT) || 4300;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
 const GITHUB_REPO = process.env.GITHUB_REPO || '';
 const GITHUB_BRANCH = process.env.GITHUB_BRANCH || 'main';
+// Deploy Hook do site estático (frontend) no Render. Quando definido, o backend
+// dispara um redeploy do frontend após gravar no GitHub, garantindo que o
+// conteúdo novo entre no build publicado mesmo que o webhook automático falhe.
+const FRONTEND_DEPLOY_HOOK = process.env.FRONTEND_DEPLOY_HOOK || '';
+
+/**
+ * Dispara o redeploy do frontend chamando o Deploy Hook do Render.
+ * Não lança erro: se o hook não estiver configurado ou falhar, apenas registra.
+ */
+async function dispararDeployFrontend() {
+  if (!FRONTEND_DEPLOY_HOOK) {
+    console.log('[deploy] FRONTEND_DEPLOY_HOOK não definido; pulando redeploy automático.');
+    return;
+  }
+  try {
+    const resp = await fetch(FRONTEND_DEPLOY_HOOK, { method: 'POST' });
+    console.log(`[deploy] hook do frontend chamado: HTTP ${resp.status}`);
+  } catch (err) {
+    console.warn(`[deploy] falha ao chamar o hook do frontend: ${err.message}`);
+  }
+}
 
 const MIME = {
   '.mp3': 'audio/mpeg',
@@ -165,6 +186,7 @@ const server = createServer(async (req, res) => {
       const arquivo = url.searchParams.get('arquivo') || '';
       const buffer = await lerCorpo(req, 15 * 1024 * 1024);
       const result = await saveSoundBytes(buffer, nome, arquivo);
+      await dispararDeployFrontend();
       sendJson(res, 200, { ok: true, ...result });
     } catch (err) {
       sendJson(res, 400, { ok: false, error: err.message });
@@ -190,6 +212,8 @@ const server = createServer(async (req, res) => {
         return;
       }
       const result = await rotasJson[req.url](payload);
+      // Gravou no GitHub com sucesso -> garante o redeploy do frontend.
+      await dispararDeployFrontend();
       sendJson(res, 200, { ok: true, ...result });
     } catch (err) {
       sendJson(res, 400, { ok: false, error: err.message });
@@ -204,4 +228,5 @@ server.listen(PORT, () => {
   console.log(`[sound-server] ouvindo na porta ${PORT}`);
   console.log(`[sound-server] repo: ${GITHUB_REPO || '(GITHUB_REPO não definido)'} branch: ${GITHUB_BRANCH}`);
   console.log(`[sound-server] CORS origin: ${ALLOWED_ORIGIN}`);
+  console.log(`[sound-server] deploy hook frontend: ${FRONTEND_DEPLOY_HOOK ? 'configurado' : 'NÃO configurado'}`);
 });
