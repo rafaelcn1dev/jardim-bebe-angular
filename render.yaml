@@ -1,47 +1,43 @@
-# Blueprint do Render para o jardim-bebe.
-#
-# Dois serviços:
-#   1) jardim-bebe-angular        -> site estático (frontend Angular) já existente
-#   2) jardim-bebe-sound-server   -> Web Service Node (backend da página /baixar)
-#
-# O backend persiste os sons/animais fazendo commit no GitHub (pasta server/),
-# por isso precisa das variáveis GITHUB_TOKEN e GITHUB_REPO. O GITHUB_TOKEN é
-# marcado como sync:false para você preenchê-lo manualmente no dashboard (nunca
-# commite o token no repositório).
-
 services:
-  # ---- Frontend (Angular) ----
   - type: web
-    runtime: static
     name: jardim-bebe-angular
+    runtime: static
     repo: https://github.com/rafaelcn1dev/jardim-bebe-angular
     branch: main
-    buildCommand: npm install; npm run build
+    buildCommand: npm install && npm run build
     staticPublishPath: dist/jardim-bebe/browser
-    autoDeploy: true
+
+    # Roteamento SPA: toda rota desconhecida serve o index.html (sem mudar a URL)
     routes:
-      # SPA: qualquer rota cai no index.html (necessário p/ o Angular Router)
       - type: rewrite
         source: /*
         destination: /index.html
 
-  # ---- Backend (servidor de sons) ----
-  - type: web
-    runtime: node
-    name: jardim-bebe-sound-server
-    repo: https://github.com/rafaelcn1dev/jardim-bebe-angular
-    branch: main
-    plan: free
-    rootDir: server
-    buildCommand: npm install
-    startCommand: npm start
-    autoDeploy: true
-    envVars:
-      - key: GITHUB_REPO
-        value: rafaelcn1dev/jardim-bebe-angular
-      - key: GITHUB_BRANCH
-        value: main
-      - key: ALLOWED_ORIGIN
-        value: https://jardim-bebe-angular.onrender.com
-      - key: GITHUB_TOKEN
-        sync: false
+    # Headers de seguranca aplicados a todas as respostas
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=()
+      - path: /*
+        name: Content-Security-Policy
+        value: >-
+          default-src 'self';
+          script-src 'self';
+          style-src 'self' 'unsafe-inline';
+          img-src 'self' data:;
+          font-src 'self';
+          media-src 'self' https: blob:;
+          connect-src 'self' https://jardim-bebe-sound-server.onrender.com;
+          base-uri 'self';
+          form-action 'self';
+          frame-ancestors 'none';
+          object-src 'none'
