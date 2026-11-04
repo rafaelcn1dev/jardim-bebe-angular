@@ -10,7 +10,8 @@ import { AnimalsService } from './animals.service';
   imports: [CommonModule, RouterLink],
   template: `
     <div
-      class="relative w-screen h-screen overflow-hidden select-none transition-colors duration-1000"
+      class="relative w-screen overflow-hidden select-none transition-colors duration-1000"
+      style="height: 100dvh;"
       [ngClass]="isNight
         ? 'bg-gradient-to-b from-slate-900 via-indigo-900 to-slate-800'
         : 'bg-gradient-to-b from-sky-300 via-sky-100 to-green-200'"
@@ -154,27 +155,29 @@ import { AnimalsService } from './animals.service';
       <!-- Veu noturno: reduz brilho/estimulo a noite (atras da UI) -->
       <div *ngIf="isNight" class="absolute inset-0 z-40 pointer-events-none bg-indigo-950/30"></div>
 
-      <!-- Controles de zoom -->
-      <div class="absolute bottom-4 left-4 z-50 flex flex-col gap-2">
+      <!-- Controles de zoom (respeitam a barra inferior do navegador no celular) -->
+      <div class="absolute left-3 z-50 flex flex-col gap-2"
+        style="bottom: calc(1rem + env(safe-area-inset-bottom));">
         <button type="button" (click)="zoomIn()" title="Aproximar" aria-label="Aproximar"
-          class="w-11 h-11 rounded-full bg-white/90 hover:bg-white text-green-800 font-black text-2xl shadow-lg border border-green-200 flex items-center justify-center transition">+</button>
+          class="w-12 h-12 rounded-full bg-white/90 hover:bg-white text-green-800 font-black text-2xl shadow-lg border border-green-200 flex items-center justify-center transition">+</button>
         <button type="button" (click)="zoomOut()" title="Afastar" aria-label="Afastar"
-          class="w-11 h-11 rounded-full bg-white/90 hover:bg-white text-green-800 font-black text-2xl shadow-lg border border-green-200 flex items-center justify-center transition">−</button>
+          class="w-12 h-12 rounded-full bg-white/90 hover:bg-white text-green-800 font-black text-2xl shadow-lg border border-green-200 flex items-center justify-center transition">−</button>
       </div>
 
-      <!-- Footer / Reset View Button -->
-      <div class="absolute bottom-4 right-4 z-50 flex gap-2">
+      <!-- Acoes (empilhadas, compactas no celular, acima da barra do navegador) -->
+      <div class="absolute right-3 z-50 flex flex-col items-end gap-2"
+        style="bottom: calc(1rem + env(safe-area-inset-bottom));">
         <a
           routerLink="/baixar"
-          class="bg-white/90 hover:bg-white text-green-800 font-bold px-4 py-2 rounded-full shadow-lg border border-green-200 text-sm flex items-center gap-2 transition"
+          class="bg-white/90 hover:bg-white text-green-800 font-bold px-4 py-2.5 rounded-full shadow-lg border border-green-200 text-sm flex items-center gap-2 transition whitespace-nowrap"
         >
-          🎵 Baixar sons
+          🎵 <span class="hidden sm:inline">Baixar sons</span><span class="sm:hidden">Sons</span>
         </a>
         <button 
           (click)="resetView()"
-          class="bg-white/90 hover:bg-white text-green-800 font-bold px-4 py-2 rounded-full shadow-lg border border-green-200 text-sm flex items-center gap-2 transition"
+          class="bg-white/90 hover:bg-white text-green-800 font-bold px-4 py-2.5 rounded-full shadow-lg border border-green-200 text-sm flex items-center gap-2 transition whitespace-nowrap"
         >
-          🏠 Centralizar Jardim
+          🏠 <span class="hidden sm:inline">Centralizar Jardim</span><span class="sm:hidden">Centralizar</span>
         </button>
       </div>
 
@@ -294,6 +297,11 @@ export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
   /** Inicia o arraste de um animal (nao deixa o mundo se mover junto). */
   onAnimalDown(animal: Animal, clientX: number, clientY: number, event: Event) {
     event.stopPropagation();
+    // Em toque, previne os eventos de mouse sinteticos (evita disparo duplo
+    // do som). Mantem o comportamento no desktop com mouse.
+    if (event.type === 'touchstart') {
+      event.preventDefault();
+    }
     this.animalArrastado = animal;
     this.animalMoveuPx = 0;
     this.dragAnimalStart = { mx: clientX, my: clientY, ax: animal.x, ay: animal.y };
@@ -387,18 +395,24 @@ export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
   playAnimalSound(animal: Animal) {
     // 1) Caminho normal (assets servidos pelo build / ng serve).
     const principal = new URL(`assets/sounds/${animal.id}.mp3`, document.baseURI).href;
-    // 2) Fallback: servidor local de sons (serve ate os arquivos recem-criados,
-    //    que o `ng serve` so passa a servir depois de reiniciar).
-    const fallback = `http://localhost:4300/sounds/${animal.id}.mp3`;
+
+    const sintetizado = () => {
+      if (animal.soundType) {
+        this.initAudio();
+        this.playSound(animal.soundType);
+      }
+    };
+
+    // Em desenvolvimento local, se o arquivo normal falhar (ex.: recem-criado
+    // que o ng serve ainda nao indexou), tenta o servidor local de sons.
+    const ehLocalhost = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 
     this.tocarArquivo(principal, () => {
-      this.tocarArquivo(fallback, () => {
-        // Nenhuma fonte tocou: usa som sintetizado se houver soundType.
-        if (animal.soundType) {
-          this.initAudio();
-          this.playSound(animal.soundType);
-        }
-      });
+      if (ehLocalhost) {
+        this.tocarArquivo(`http://localhost:4300/sounds/${animal.id}.mp3`, sintetizado);
+      } else {
+        sintetizado();
+      }
     });
   }
 

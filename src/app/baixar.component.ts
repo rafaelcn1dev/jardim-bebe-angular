@@ -32,8 +32,22 @@ type Origem = 'link' | 'upload' | 'padrao';
           </p>
         </div>
 
-        <!-- Status do servidor local -->
-        <div *ngIf="servidorOnline === false"
+        <!-- Aviso no site publicado (Pages): recurso so existe em dev local -->
+        <div *ngIf="servidorOnline === false && ehProducao"
+          class="mb-4 rounded-xl bg-amber-50 border border-amber-300 px-4 py-3 text-sm text-amber-800">
+          <p class="font-bold">Criação/edição de sons indisponível aqui</p>
+          <p class="mt-1">
+            Esta é a versão publicada do jardim. Baixar, enviar e editar sons só funciona
+            quando o projeto roda no computador (ambiente de desenvolvimento). Aqui você
+            pode ver e ouvir os animais que já têm som.
+          </p>
+          <p class="mt-2">
+            <a routerLink="/" class="font-bold underline">← Voltar ao jardim</a>
+          </p>
+        </div>
+
+        <!-- Servidor offline em desenvolvimento local -->
+        <div *ngIf="servidorOnline === false && !ehProducao"
           class="mb-4 rounded-xl bg-red-50 border border-red-300 px-4 py-3 text-sm text-red-800">
           <p class="font-bold">Servidor de sons offline</p>
           <p class="mt-1">
@@ -41,7 +55,6 @@ type Origem = 'link' | 'upload' | 'padrao';
             <strong>e</strong> o servidor de sons juntos. Depois clique em
             <button type="button" (click)="verificarServidor()" class="font-bold underline">verificar novamente</button>.
           </p>
-          <p class="mt-1 text-xs text-red-600">(No GitHub Pages este recurso não funciona, pois não há servidor.)</p>
         </div>
         <div *ngIf="servidorOnline === null"
           class="mb-4 rounded-xl bg-gray-50 border border-gray-200 px-4 py-2 text-xs text-gray-500">
@@ -222,6 +235,9 @@ export class BaixarComponent implements OnInit {
 
   // Estado do servidor local: null = verificando, true/false = resultado.
   servidorOnline: boolean | null = null;
+
+  // true quando acessado pelo site publicado (nao localhost), onde nao ha servidor.
+  readonly ehProducao = !/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 
   carregando = false;
   resultado: Resultado | null = null;
