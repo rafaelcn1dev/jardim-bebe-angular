@@ -86,5 +86,16 @@
     "y": 442,
     "size": 8,
     "message": "Squawk! Lindo!"
+  },
+  {
+    "id": "foca",
+    "name": "Foca",
+    "emoji": "F",
+    "bgClass": "bg-lime-100",
+    "soundType": "",
+    "x": 300,
+    "y": 250,
+    "size": 8,
+    "message": "On on on!"
   }
 ]
