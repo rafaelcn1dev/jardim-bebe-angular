@@ -18,6 +18,8 @@
  */
 
 import { Buffer } from 'node:buffer';
+import { lookup } from 'node:dns/promises';
+import net from 'node:net';
 
 const GITHUB_API = 'https://api.github.com';
 
@@ -25,13 +27,24 @@ export const EXT_PERMITIDAS = ['.mp3', '.wav', '.ogg', '.m4a', '.aac'];
 const SOUNDS_PREFIX = 'src/assets/sounds';
 const ANIMALS_PATH = 'src/assets/animals.json';
 
+/**
+ * Erro com `status` HTTP sugerido, para o servidor responder com o código certo
+ * (400 = entrada inválida, 409 = conflito, 502 = falha de serviço externo).
+ */
+export class AppError extends Error {
+  constructor(message, status = 400) {
+    super(message);
+    this.status = status;
+  }
+}
+
 function cfg() {
   const token = process.env.GITHUB_TOKEN;
   const repo = process.env.GITHUB_REPO;
   const branch = process.env.GITHUB_BRANCH || 'main';
-  if (!token) throw new Error('GITHUB_TOKEN não configurado no servidor.');
+  if (!token) throw new AppError('Servidor sem credencial do GitHub configurada.', 502);
   if (!repo || !repo.includes('/')) {
-    throw new Error('GITHUB_REPO inválido. Use o formato "usuario/repositorio".');
+    throw new AppError('Servidor com repositório mal configurado.', 502);
   }
   return { token, repo, branch };
 }
@@ -62,6 +75,67 @@ function extensaoDaUrl(url) {
     return match ? `.${match[1]}` : '.mp3';
   } catch {
     return '.mp3';
+  }
+}
+
+/**
+ * Rejeita nomes de arquivo perigosos (travessia de diretório). Só aceita um
+ * nome simples como "gato.mp3" — sem "/", "\" ou "..".
+ */
+export function nomeArquivoSeguro(nome) {
+  const limpo = String(nome || '').trim();
+  if (!limpo || limpo.includes('/') || limpo.includes('\\') || limpo.includes('..')) {
+    return null;
+  }
+  // Só letras/números/._- e precisa terminar com extensão permitida.
+  if (!/^[a-z0-9_.-]+$/i.test(limpo)) return null;
+  if (!EXT_PERMITIDAS.some((e) => limpo.toLowerCase().endsWith(e))) return null;
+  return limpo;
+}
+
+/** Verifica se um IP é privado/loopback/link-local (proteção contra SSRF). */
+export function ipEhInterno(ip) {
+  if (net.isIPv4(ip)) {
+    const [a, b] = ip.split('.').map(Number);
+    if (a === 10) return true; // 10.0.0.0/8
+    if (a === 127) return true; // loopback
+    if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
+    if (a === 192 && b === 168) return true; // 192.168.0.0/16
+    if (a === 169 && b === 254) return true; // link-local / metadata (169.254.169.254)
+    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT 100.64.0.0/10
+    if (a === 0) return true;
+    return false;
+  }
+  if (net.isIPv6(ip)) {
+    const baixo = ip.toLowerCase();
+    if (baixo === '::1' || baixo === '::') return true; // loopback
+    if (baixo.startsWith('fe80')) return true; // link-local
+    if (baixo.startsWith('fc') || baixo.startsWith('fd')) return true; // unique local
+    if (baixo.startsWith('::ffff:')) return ipEhInterno(baixo.replace('::ffff:', '')); // IPv4 mapeado
+    return false;
+  }
+  return true; // formato desconhecido: trata como inseguro
+}
+
+/**
+ * Resolve o host e garante que nenhum endereço resolvido é interno. Protege
+ * contra SSRF (ex.: endpoint de metadados da nuvem, serviços internos).
+ */
+async function garantirHostPublico(hostname) {
+  // Se já for um IP literal, valida direto.
+  if (net.isIP(hostname)) {
+    if (ipEhInterno(hostname)) throw new AppError('Endereço de destino não permitido.', 400);
+    return;
+  }
+  let enderecos;
+  try {
+    enderecos = await lookup(hostname, { all: true });
+  } catch {
+    throw new AppError('Não foi possível resolver o endereço informado.', 400);
+  }
+  if (!enderecos.length) throw new AppError('Endereço não encontrado.', 400);
+  for (const { address } of enderecos) {
+    if (ipEhInterno(address)) throw new AppError('Endereço de destino não permitido.', 400);
   }
 }
 
@@ -100,12 +174,13 @@ async function putFile(path, contentBuffer, mensagem) {
     body: JSON.stringify(body),
   });
   if (!resp.ok) {
-    let detalhe = '';
-    try {
-      const j = await resp.json();
-      detalhe = j.message ? ` (${j.message})` : '';
-    } catch {}
-    throw new Error(`GitHub PUT ${path} falhou: HTTP ${resp.status}${detalhe}`);
+    // 409 = conflito de sha (escrita concorrente). Sinaliza para retry.
+    if (resp.status === 409) {
+      throw new AppError(`Conflito de versão ao gravar ${path}.`, 409);
+    }
+    // 401/403 = problema de token/permissão/limite -> falha de serviço externo.
+    const status = resp.status === 401 || resp.status === 403 ? 502 : 400;
+    throw new AppError(`Falha ao gravar no repositório (HTTP ${resp.status}).`, status);
   }
   return resp.json();
 }
@@ -123,10 +198,10 @@ async function getSoundBytes(fileName) {
 
 /** Baixa um áudio por URL direta e faz commit em src/assets/sounds/<nome>.<ext>. */
 export async function downloadSound(url, nomeBruto) {
-  if (!url || !nomeBruto) throw new Error('URL e nome são obrigatórios.');
+  if (!url || !nomeBruto) throw new AppError('URL e nome são obrigatórios.');
 
   if (/youtube\.com|youtu\.be/i.test(url)) {
-    throw new Error(
+    throw new AppError(
       'Links do YouTube não são suportados (Termos de Serviço + direitos autorais). ' +
         'Use um link DIRETO .mp3 de uma fonte livre como Pixabay, Mixkit ou Freesound.'
     );
@@ -136,32 +211,53 @@ export async function downloadSound(url, nomeBruto) {
   try {
     parsed = new URL(url);
   } catch {
-    throw new Error('URL inválida.');
+    throw new AppError('URL inválida.');
   }
-  if (!/^https?:$/.test(parsed.protocol)) throw new Error('Use uma URL http(s).');
+  if (!/^https?:$/.test(parsed.protocol)) throw new AppError('Use uma URL http(s).');
 
   const nome = sanitizarNome(nomeBruto);
-  if (!nome) throw new Error('Nome inválido após normalização.');
+  if (!nome) throw new AppError('Nome inválido após normalização.');
 
   const ext = extensaoDaUrl(url);
   if (!EXT_PERMITIDAS.includes(ext)) {
-    throw new Error(`Extensão ${ext} não suportada. Use: ${EXT_PERMITIDAS.join(', ')}`);
+    throw new AppError(`Extensão ${ext} não suportada. Use: ${EXT_PERMITIDAS.join(', ')}`);
   }
 
+  // Segue redirects manualmente, validando o host a cada salto (proteção SSRF:
+  // impede que uma URL pública redirecione para um endereço interno).
+  const MAX_REDIRECTS = 5;
+  let urlAtual = parsed;
   let resposta;
-  try {
-    resposta = await fetch(url, { redirect: 'follow' });
-  } catch (err) {
-    throw new Error(`Falha ao conectar: ${err.message}`);
+  for (let i = 0; i <= MAX_REDIRECTS; i++) {
+    await garantirHostPublico(urlAtual.hostname);
+    try {
+      resposta = await fetch(urlAtual.href, { redirect: 'manual' });
+    } catch (err) {
+      throw new AppError(`Falha ao conectar: ${err.message}`, 502);
+    }
+    // Redirecionamento?
+    if (resposta.status >= 300 && resposta.status < 400 && resposta.headers.get('location')) {
+      if (i === MAX_REDIRECTS) throw new AppError('Excesso de redirecionamentos.', 502);
+      try {
+        urlAtual = new URL(resposta.headers.get('location'), urlAtual);
+      } catch {
+        throw new AppError('Redirecionamento inválido.', 502);
+      }
+      if (!/^https?:$/.test(urlAtual.protocol)) {
+        throw new AppError('Redirecionamento para protocolo não permitido.', 400);
+      }
+      continue;
+    }
+    break;
   }
   if (!resposta.ok) {
-    throw new Error(`Download falhou: HTTP ${resposta.status} ${resposta.statusText}`);
+    throw new AppError(`Download falhou: HTTP ${resposta.status} ${resposta.statusText}`, 502);
   }
 
   const arrayBuf = await resposta.arrayBuffer();
   const buffer = Buffer.from(arrayBuf);
-  if (buffer.length === 0) throw new Error('O áudio baixado está vazio.');
-  if (buffer.length > 15 * 1024 * 1024) throw new Error('Áudio muito grande (limite 15 MB).');
+  if (buffer.length === 0) throw new AppError('O áudio baixado está vazio.');
+  if (buffer.length > 15 * 1024 * 1024) throw new AppError('Áudio muito grande (limite 15 MB).');
 
   const fileName = `${nome}${ext}`;
   await putFile(`${SOUNDS_PREFIX}/${fileName}`, buffer, `som: adiciona ${fileName} via /baixar`);
@@ -171,16 +267,16 @@ export async function downloadSound(url, nomeBruto) {
 
 /** Grava bytes enviados por upload em src/assets/sounds/<nome>.<ext>. */
 export async function saveSoundBytes(buffer, nomeBruto, nomeArquivoOriginal = '') {
-  if (!buffer || buffer.length === 0) throw new Error('Arquivo vazio.');
-  if (buffer.length > 15 * 1024 * 1024) throw new Error('Arquivo muito grande (limite 15 MB).');
+  if (!buffer || buffer.length === 0) throw new AppError('Arquivo vazio.');
+  if (buffer.length > 15 * 1024 * 1024) throw new AppError('Arquivo muito grande (limite 15 MB).');
 
   const nome = sanitizarNome(nomeBruto);
-  if (!nome) throw new Error('Nome inválido após normalização.');
+  if (!nome) throw new AppError('Nome inválido após normalização.');
 
   const m = String(nomeArquivoOriginal).toLowerCase().match(/\.(mp3|wav|ogg|m4a|aac)$/);
   const ext = m ? `.${m[1]}` : '.mp3';
   if (!EXT_PERMITIDAS.includes(ext)) {
-    throw new Error(`Extensão ${ext} não suportada. Use: ${EXT_PERMITIDAS.join(', ')}`);
+    throw new AppError(`Extensão ${ext} não suportada. Use: ${EXT_PERMITIDAS.join(', ')}`);
   }
 
   const fileName = `${nome}${ext}`;
@@ -191,16 +287,23 @@ export async function saveSoundBytes(buffer, nomeBruto, nomeArquivoOriginal = ''
 
 /** Copia um som existente para um novo id (reaproveita um arquivo já no repo). */
 export async function copySound(origemArquivo, nomeDestinoBruto) {
-  const origem = String(origemArquivo || '').replace(/[^a-z0-9_.-]/gi, '');
-  const ext = origem.toLowerCase().match(/\.(mp3|wav|ogg|m4a|aac)$/);
-  if (!ext) throw new Error('Arquivo de origem inválido.');
+  // Rejeita travessia de diretório e valida o formato do nome de origem.
+  const origem = nomeArquivoSeguro(origemArquivo);
+  if (!origem) throw new AppError('Arquivo de origem inválido.');
 
   const nome = sanitizarNome(nomeDestinoBruto);
-  if (!nome) throw new Error('Nome de destino inválido.');
+  if (!nome) throw new AppError('Nome de destino inválido.');
+
+  // A origem precisa existir de fato na pasta de sons (evita ler fora dela).
+  const existentes = await listSounds();
+  if (!existentes.includes(origem)) {
+    throw new AppError(`Som de origem "${origem}" não encontrado.`, 404);
+  }
 
   const bytes = await getSoundBytes(origem);
-  if (!bytes) throw new Error(`Som de origem "${origem}" não encontrado.`);
+  if (!bytes) throw new AppError(`Som de origem "${origem}" não encontrado.`, 404);
 
+  const ext = origem.toLowerCase().match(/\.(mp3|wav|ogg|m4a|aac)$/);
   const fileName = `${nome}${ext[0]}`;
   await putFile(`${SOUNDS_PREFIX}/${fileName}`, bytes, `som: copia ${origem} -> ${fileName}`);
 
@@ -226,11 +329,11 @@ export async function listSounds() {
 /** Adiciona/atualiza um animal em src/assets/animals.json (commit). */
 export async function saveAnimal(animal) {
   if (!animal || !animal.id || !animal.name || !animal.emoji) {
-    throw new Error('Animal inválido: id, name e emoji são obrigatórios.');
+    throw new AppError('Animal inválido: id, name e emoji são obrigatórios.');
   }
 
   const id = sanitizarNome(animal.id);
-  if (!id) throw new Error('id inválido após normalização.');
+  if (!id) throw new AppError('id inválido após normalização.');
 
   const registro = {
     id,
@@ -244,22 +347,36 @@ export async function saveAnimal(animal) {
     message: String(animal.message || '').trim(),
   };
 
-  const atual = await getFile(ANIMALS_PATH);
-  let animais = [];
-  if (atual) {
+  // Read-modify-write em animals.json. Como é um único arquivo, duas gravações
+  // simultâneas podem conflitar (409 no GitHub). Tentamos de novo relendo o
+  // conteúdo mais recente antes de desistir.
+  const MAX_TENTATIVAS = 4;
+  for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+    const atual = await getFile(ANIMALS_PATH);
+    let animais = [];
+    if (atual) {
+      try {
+        animais = JSON.parse(Buffer.from(atual.contentBase64, 'base64').toString('utf8'));
+        if (!Array.isArray(animais)) animais = [];
+      } catch {
+        animais = [];
+      }
+    }
+
+    const semDuplicado = animais.filter((a) => a.id !== id);
+    semDuplicado.push(registro);
+
+    const conteudo = Buffer.from(JSON.stringify(semDuplicado, null, 2) + '\n', 'utf8');
     try {
-      animais = JSON.parse(Buffer.from(atual.contentBase64, 'base64').toString('utf8'));
-      if (!Array.isArray(animais)) animais = [];
-    } catch {
-      animais = [];
+      await putFile(ANIMALS_PATH, conteudo, `animais: salva "${id}" via /baixar`);
+      return { animal: registro, total: semDuplicado.length };
+    } catch (err) {
+      // Só faz retry em conflito de versão; outros erros sobem na hora.
+      if (err instanceof AppError && err.status === 409 && tentativa < MAX_TENTATIVAS) {
+        continue;
+      }
+      throw err;
     }
   }
-
-  const semDuplicado = animais.filter((a) => a.id !== id);
-  semDuplicado.push(registro);
-
-  const conteudo = Buffer.from(JSON.stringify(semDuplicado, null, 2) + '\n', 'utf8');
-  await putFile(ANIMALS_PATH, conteudo, `animais: salva "${id}" via /baixar`);
-
-  return { animal: registro, total: semDuplicado.length };
+  throw new AppError('Não foi possível salvar o animal após várias tentativas (conflito).', 409);
 }

@@ -21,24 +21,34 @@
  *   GITHUB_TOKEN   (obrigatória) PAT fine-grained com escrita em Contents
  *   GITHUB_REPO    (obrigatória) "usuario/repositorio"
  *   GITHUB_BRANCH  (opcional, padrão "main")
- *   ALLOWED_ORIGIN (opcional) origem do frontend para CORS; padrão "*"
+ *   ALLOWED_ORIGIN (recomendada) origem do frontend p/ CORS; em produção NÃO
+ *                  deve ficar "*". Se não definida, o CORS fica restrito e
+ *                  bloqueia chamadas de navegador de outras origens.
+ *   WRITE_SECRET   (opcional) se definida, as rotas de escrita exigem o header
+ *                  "x-write-secret" com esse valor. Camada extra de proteção.
+ *   FRONTEND_DEPLOY_HOOK (recomendada) Deploy Hook do frontend no Render.
  *   PORT           (Render injeta automaticamente)
  */
 
 import { createServer } from 'node:http';
 import process from 'node:process';
 import { Buffer } from 'node:buffer';
+import { timingSafeEqual } from 'node:crypto';
 import {
   downloadSound,
   saveAnimal,
   saveSoundBytes,
   listSounds,
   copySound,
+  nomeArquivoSeguro,
   EXT_PERMITIDAS,
 } from './github-storage.mjs';
 
 const PORT = Number(process.env.PORT) || 4300;
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
+// Origem do frontend para CORS. Sem valor, cai para o próprio domínio do
+// serviço (efetivamente bloqueando navegadores de outras origens) em vez de "*".
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '';
+const WRITE_SECRET = process.env.WRITE_SECRET || '';
 const GITHUB_REPO = process.env.GITHUB_REPO || '';
 const GITHUB_BRANCH = process.env.GITHUB_BRANCH || 'main';
 // Deploy Hook do site estático (frontend) no Render. Quando definido, o backend
@@ -73,11 +83,27 @@ const MIME = {
 
 function corsHeaders(extra = {}) {
   return {
-    'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
+    // Sem ALLOWED_ORIGIN definida, não libera CORS para nenhuma origem externa.
+    'Access-Control-Allow-Origin': ALLOWED_ORIGIN || 'null',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, x-write-secret',
     ...extra,
   };
+}
+
+/**
+ * Se WRITE_SECRET estiver configurado, exige o header "x-write-secret" igual.
+ * Comparação em tempo constante para evitar vazamento por timing. Quando o
+ * segredo não está definido, não bloqueia (mantém compatibilidade).
+ */
+function escritaAutorizada(req) {
+  if (!WRITE_SECRET) return true;
+  const enviado = req.headers['x-write-secret'];
+  if (typeof enviado !== 'string' || enviado.length === 0) return false;
+  const a = Buffer.from(enviado);
+  const b = Buffer.from(WRITE_SECRET);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 function sendJson(res, status, data) {
@@ -173,13 +199,22 @@ const server = createServer(async (req, res) => {
   // Servir/propagar um som (preview + fallback)
   if (req.method === 'GET' && req.url.startsWith('/sounds/')) {
     const nomeArquivo = decodeURIComponent(req.url.replace('/sounds/', '').split('?')[0]);
-    const seguro = nomeArquivo.replace(/[^a-z0-9_.-]/gi, '');
+    const seguro = nomeArquivoSeguro(nomeArquivo); // rejeita ".." e "/"
+    if (!seguro) {
+      res.writeHead(400, corsHeaders());
+      res.end('bad request');
+      return;
+    }
     await serveSom(res, seguro);
     return;
   }
 
   // Upload (corpo binário; nome/arquivo na query string)
   if (req.method === 'POST' && req.url.startsWith('/api/upload')) {
+    if (!escritaAutorizada(req)) {
+      sendJson(res, 401, { ok: false, error: 'Não autorizado.' });
+      return;
+    }
     try {
       const url = new URL(req.url, `http://localhost:${PORT}`);
       const nome = url.searchParams.get('nome') || '';
@@ -189,7 +224,7 @@ const server = createServer(async (req, res) => {
       await dispararDeployFrontend();
       sendJson(res, 200, { ok: true, ...result });
     } catch (err) {
-      sendJson(res, 400, { ok: false, error: err.message });
+      sendJson(res, err.status || 400, { ok: false, error: err.message });
     }
     return;
   }
@@ -202,6 +237,10 @@ const server = createServer(async (req, res) => {
   };
 
   if (req.method === 'POST' && rotasJson[req.url]) {
+    if (!escritaAutorizada(req)) {
+      sendJson(res, 401, { ok: false, error: 'Não autorizado.' });
+      return;
+    }
     try {
       const raw = await lerCorpo(req, 1_000_000);
       let payload;
@@ -216,7 +255,7 @@ const server = createServer(async (req, res) => {
       await dispararDeployFrontend();
       sendJson(res, 200, { ok: true, ...result });
     } catch (err) {
-      sendJson(res, 400, { ok: false, error: err.message });
+      sendJson(res, err.status || 400, { ok: false, error: err.message });
     }
     return;
   }
@@ -227,6 +266,7 @@ const server = createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`[sound-server] ouvindo na porta ${PORT}`);
   console.log(`[sound-server] repo: ${GITHUB_REPO || '(GITHUB_REPO não definido)'} branch: ${GITHUB_BRANCH}`);
-  console.log(`[sound-server] CORS origin: ${ALLOWED_ORIGIN}`);
+  console.log(`[sound-server] CORS origin: ${ALLOWED_ORIGIN || '(restrito: nenhuma origem externa)'}`);
+  console.log(`[sound-server] segredo de escrita: ${WRITE_SECRET ? 'exigido' : 'não exigido'}`);
   console.log(`[sound-server] deploy hook frontend: ${FRONTEND_DEPLOY_HOOK ? 'configurado' : 'NÃO configurado'}`);
 });
