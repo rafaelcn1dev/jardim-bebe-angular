@@ -1,0 +1,13 @@
+{
+  "name": "jardim-bebe-sound-server",
+  "version": "1.0.0",
+  "description": "Backend de producao da pagina /baixar: persiste sons e animais via GitHub API.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node index.mjs"
+  }
+}

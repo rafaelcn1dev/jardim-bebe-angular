@@ -1,0 +1,47 @@
+# Blueprint do Render para o jardim-bebe.
+#
+# Dois serviços:
+#   1) jardim-bebe-angular        -> site estático (frontend Angular) já existente
+#   2) jardim-bebe-sound-server   -> Web Service Node (backend da página /baixar)
+#
+# O backend persiste os sons/animais fazendo commit no GitHub (pasta server/),
+# por isso precisa das variáveis GITHUB_TOKEN e GITHUB_REPO. O GITHUB_TOKEN é
+# marcado como sync:false para você preenchê-lo manualmente no dashboard (nunca
+# commite o token no repositório).
+
+services:
+  # ---- Frontend (Angular) ----
+  - type: web
+    runtime: static
+    name: jardim-bebe-angular
+    repo: https://github.com/rafaelcn1dev/jardim-bebe-angular
+    branch: main
+    buildCommand: npm install; npm run build
+    staticPublishPath: dist/jardim-bebe/browser
+    autoDeploy: true
+    routes:
+      # SPA: qualquer rota cai no index.html (necessário p/ o Angular Router)
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  # ---- Backend (servidor de sons) ----
+  - type: web
+    runtime: node
+    name: jardim-bebe-sound-server
+    repo: https://github.com/rafaelcn1dev/jardim-bebe-angular
+    branch: main
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: GITHUB_REPO
+        value: rafaelcn1dev/jardim-bebe-angular
+      - key: GITHUB_BRANCH
+        value: main
+      - key: ALLOWED_ORIGIN
+        value: https://jardim-bebe-angular.onrender.com
+      - key: GITHUB_TOKEN
+        sync: false

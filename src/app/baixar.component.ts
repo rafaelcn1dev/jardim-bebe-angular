@@ -4,9 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Animal, AnimalData, AnimalSugestao, CATALOGO_ANIMAIS } from './animals';
 import { AnimalsService } from './animals.service';
-
-// Porta do servidor local (scripts/sound-server.mjs)
-const SOUND_SERVER = 'http://localhost:4300';
+import { SOUND_SERVER, EH_LOCALHOST } from './sound-server';
 
 interface Resultado {
   tipo: 'ok' | 'erro';
@@ -35,14 +33,15 @@ type Origem = 'link' | 'upload' | 'padrao';
           </p>
         </div>
 
-        <!-- Aviso no site publicado (Pages): recurso so existe em dev local -->
+        <!-- Produção: backend acordando/indisponível (plano free hiberna) -->
         <div *ngIf="servidorOnline === false && ehProducao"
           class="mb-4 rounded-xl bg-amber-50 border border-amber-300 px-4 py-3 text-sm text-amber-800">
-          <p class="font-bold">Criação/edição de sons indisponível aqui</p>
+          <p class="font-bold">Serviço de sons indisponível no momento</p>
           <p class="mt-1">
-            Esta é a versão publicada do jardim. Baixar, enviar e editar sons só funciona
-            quando o projeto roda no computador (ambiente de desenvolvimento). Aqui você
-            pode ver e ouvir os animais que já têm som.
+            O servidor que salva os sons pode estar "acordando" (o plano gratuito hiberna
+            após um tempo sem uso) ou passando por um deploy. Aguarde alguns segundos e
+            clique em
+            <button type="button" (click)="verificarServidor()" class="font-bold underline">tentar novamente</button>.
           </p>
           <p class="mt-2">
             <a routerLink="/" class="font-bold underline">← Voltar ao jardim</a>
@@ -61,7 +60,15 @@ type Origem = 'link' | 'upload' | 'padrao';
         </div>
         <div *ngIf="servidorOnline === null"
           class="mb-4 rounded-xl bg-gray-50 border border-gray-200 px-4 py-2 text-xs text-gray-500">
-          Verificando servidor de sons...
+          {{ ehProducao ? 'Conectando ao servidor de sons (pode levar alguns segundos no primeiro acesso)...' : 'Verificando servidor de sons...' }}
+        </div>
+
+        <!-- Produção: aviso de que mudanças passam por um deploy -->
+        <div *ngIf="servidorOnline === true && ehProducao"
+          class="mb-4 rounded-xl bg-blue-50 border border-blue-200 px-4 py-3 text-xs text-blue-800">
+          Dica: sons e animais criados aqui são salvos no repositório e publicados
+          automaticamente. A atualização completa no jardim pode levar 1–2 minutos
+          (tempo do novo deploy).
         </div>
 
         <form (ngSubmit)="salvar()" class="space-y-4">
@@ -202,7 +209,8 @@ type Origem = 'link' | 'upload' | 'padrao';
 
         <div class="mt-6 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-1">
           <p class="font-bold text-gray-600">Como usar:</p>
-          <p>Rode <code>npm start</code> — ele já inicia o app e o servidor de sons juntos.</p>
+          <p *ngIf="!ehProducao">No computador: rode <code>npm start</code> — ele já inicia o app e o servidor de sons juntos.</p>
+          <p *ngIf="ehProducao">No site publicado: escolha o animal e o som; ao salvar, a mudança é publicada automaticamente (leva 1–2 min).</p>
           <p class="text-amber-700">Links do YouTube não são aceitos (Termos de Serviço + direitos autorais).</p>
         </div>
 
@@ -239,8 +247,8 @@ export class BaixarComponent implements OnInit {
   // Estado do servidor local: null = verificando, true/false = resultado.
   servidorOnline: boolean | null = null;
 
-  // true quando acessado pelo site publicado (nao localhost), onde nao ha servidor.
-  readonly ehProducao = !/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  // true quando acessado pelo site publicado (nao localhost).
+  readonly ehProducao = !EH_LOCALHOST;
 
   carregando = false;
   resultado: Resultado | null = null;

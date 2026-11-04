@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Animal } from './animals';
 import { AnimalsService } from './animals.service';
+import { SOUND_SERVER, EH_LOCALHOST } from './sound-server';
 
 @Component({
   selector: 'app-jardim',
@@ -345,11 +346,14 @@ export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
       size: animal.size,
       message: animal.message,
     };
-    // Persiste localmente (funciona ate no Pages).
+    // Persiste localmente (funciona em qualquer ambiente, inclusive publicado).
     this.animalsService.saveLocalExtra(dado);
-    // Tenta persistir no animals.json via servidor local (ignora se offline).
+    // Em desenvolvimento, tambem persiste a posicao no animals.json via servidor
+    // local. Em producao NAO fazemos isso de proposito: cada arrasto viraria um
+    // commit/redeploy no GitHub. La a posicao fica so no localStorage do navegador.
+    if (!EH_LOCALHOST) return;
     try {
-      await fetch('http://localhost:4300/api/animal', {
+      await fetch(`${SOUND_SERVER}/api/animal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ animal: dado }),
@@ -403,16 +407,12 @@ export class JardimComponent implements OnInit, AfterViewInit, OnDestroy {
       }
     };
 
-    // Em desenvolvimento local, se o arquivo normal falhar (ex.: recem-criado
-    // que o ng serve ainda nao indexou), tenta o servidor local de sons.
-    const ehLocalhost = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
-
+    // Se o arquivo normal falhar (ex.: som recem-criado que o build/deploy ainda
+    // nao publicou), tenta o servidor de sons: em dev é o local (porta 4300),
+    // em produção é o backend no Render (que faz proxy do GitHub). Se tambem
+    // falhar, cai no som sintetizado.
     this.tocarArquivo(principal, () => {
-      if (ehLocalhost) {
-        this.tocarArquivo(`http://localhost:4300/sounds/${animal.id}.mp3`, sintetizado);
-      } else {
-        sintetizado();
-      }
+      this.tocarArquivo(`${SOUND_SERVER}/sounds/${animal.id}.mp3`, sintetizado);
     });
   }
 
