@@ -20,8 +20,11 @@ type Origem = 'link' | 'upload' | 'padrao';
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   template: `
-    <div class="min-h-screen w-full bg-gradient-to-b from-sky-200 to-green-200 flex items-center justify-center p-4">
-      <div class="w-full max-w-lg bg-white/90 backdrop-blur-md rounded-3xl shadow-2xl border border-white/60 p-8">
+    <div
+      class="w-full bg-gradient-to-b from-sky-200 to-green-200 flex items-start sm:items-center justify-center p-4 overflow-y-auto"
+      style="height: 100dvh;"
+    >
+      <div class="w-full max-w-lg bg-white/90 backdrop-blur-md rounded-3xl shadow-2xl border border-white/60 p-6 sm:p-8 my-auto">
 
         <div class="text-center mb-6">
           <h1 class="text-2xl font-black text-green-700 flex items-center justify-center gap-2">
