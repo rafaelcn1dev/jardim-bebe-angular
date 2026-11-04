@@ -97,5 +97,16 @@
     "y": 250,
     "size": 8,
     "message": "On on on!"
+  },
+  {
+    "id": "porco",
+    "name": "Porco",
+    "emoji": "🐷",
+    "bgClass": "bg-cyan-100",
+    "soundType": "",
+    "x": 780,
+    "y": 250,
+    "size": 8,
+    "message": "Oinc! Oinc!"
   }
 ]
