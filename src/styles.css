@@ -16,3 +16,42 @@ body {
   user-select: none;
   -webkit-user-select: none;
 }
+
+/*
+ * Ajustes para telas baixas (celular na horizontal). Em landscape a altura
+ * util fica pequena e os overlays (cabecalho, botoes) se sobrepunham e
+ * "quebravam" a tela. Aqui compactamos o cabecalho e respeitamos as areas
+ * seguras (notch / barra do sistema) para que nada fique cortado.
+ */
+
+/* Cabecalho de instrucoes: respeita o topo seguro e nunca encosta no botao
+ * de dia/noite (reserva espaco nas laterais). */
+.jardim-header {
+  top: calc(0.75rem + env(safe-area-inset-top));
+  max-width: min(92vw, 34rem);
+  width: max-content;
+}
+
+/* Botao dia/noite e demais overlays do topo respeitam o notch. */
+.jardim-top-safe {
+  top: calc(0.75rem + env(safe-area-inset-top));
+}
+
+/* Em telas baixas (tipicamente celular deitado) compactamos tudo. */
+@media (max-height: 480px) {
+  .jardim-header {
+    top: calc(0.4rem + env(safe-area-inset-top));
+    max-width: min(80vw, 30rem);
+    padding: 0.35rem 1rem;
+  }
+  .jardim-header h1 {
+    font-size: 1rem;
+    line-height: 1.2;
+  }
+  .jardim-header p {
+    display: none; /* some a instrucao secundaria para caber na altura */
+  }
+  .jardim-top-safe {
+    top: calc(0.4rem + env(safe-area-inset-top));
+  }
+}

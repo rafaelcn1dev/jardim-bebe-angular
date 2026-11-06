@@ -19,11 +19,11 @@ import { SOUND_SERVER, EH_LOCALHOST } from './sound-server';
     >
 
       <!-- Instructions / Header Overlay -->
-      <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-white/80 backdrop-blur-md px-6 py-2 rounded-full shadow-lg border border-white/40 text-center pointer-events-none">
-        <h1 class="text-xl font-bold text-green-700 drop-shadow-sm flex items-center gap-2">
+      <div class="jardim-header absolute left-1/2 transform -translate-x-1/2 z-50 bg-white/80 backdrop-blur-md px-6 py-2 rounded-2xl shadow-lg border border-white/40 text-center pointer-events-none">
+        <h1 class="text-base sm:text-xl font-bold text-green-700 drop-shadow-sm leading-tight">
           {{ isNight ? '🌙 Jardim Encantado dos Bichinhos 🌟' : '🌳 Jardim Encantado dos Bichinhos 🐥' }}
         </h1>
-        <p class="text-xs text-gray-600 font-medium">
+        <p class="text-[11px] sm:text-xs text-gray-600 font-medium mt-0.5">
           {{ isNight ? 'É hora de descansar... explore com calma o jardim adormecido.' : 'Arraste a tela para explorar o jardim e clique nos animais!' }}
         </p>
       </div>
@@ -34,7 +34,7 @@ import { SOUND_SERVER, EH_LOCALHOST } from './sound-server';
         (click)="alternarTema()"
         [title]="isNight ? 'Mudar para o dia' : 'Mudar para a noite'"
         [attr.aria-label]="isNight ? 'Mudar para o dia' : 'Mudar para a noite'"
-        class="absolute top-4 right-4 z-50 w-10 h-10 rounded-full bg-white/80 backdrop-blur-md shadow-lg border border-white/40 flex items-center justify-center text-xl hover:scale-110 transition"
+        class="jardim-top-safe absolute right-4 z-50 w-10 h-10 rounded-full bg-white/80 backdrop-blur-md shadow-lg border border-white/40 flex items-center justify-center text-xl hover:scale-110 transition"
       >
         {{ isNight ? '☀️' : '🌙' }}
       </button>
@@ -157,8 +157,8 @@ import { SOUND_SERVER, EH_LOCALHOST } from './sound-server';
       <div *ngIf="isNight" class="absolute inset-0 z-40 pointer-events-none bg-indigo-950/30"></div>
 
       <!-- Controles de zoom (respeitam a barra inferior do navegador no celular) -->
-      <div class="absolute left-3 z-50 flex flex-col gap-2"
-        style="bottom: calc(1rem + env(safe-area-inset-bottom));">
+      <div class="absolute z-50 flex flex-col gap-2"
+        style="bottom: calc(1rem + env(safe-area-inset-bottom)); left: calc(0.75rem + env(safe-area-inset-left));">
         <button type="button" (click)="zoomIn()" title="Aproximar" aria-label="Aproximar"
           class="w-12 h-12 rounded-full bg-white/90 hover:bg-white text-green-800 font-black text-2xl shadow-lg border border-green-200 flex items-center justify-center transition">+</button>
         <button type="button" (click)="zoomOut()" title="Afastar" aria-label="Afastar"
@@ -166,8 +166,8 @@ import { SOUND_SERVER, EH_LOCALHOST } from './sound-server';
       </div>
 
       <!-- Acoes (empilhadas, compactas no celular, acima da barra do navegador) -->
-      <div class="absolute right-3 z-50 flex flex-col items-end gap-2"
-        style="bottom: calc(1rem + env(safe-area-inset-bottom));">
+      <div class="absolute z-50 flex flex-col items-end gap-2"
+        style="bottom: calc(1rem + env(safe-area-inset-bottom)); right: calc(0.75rem + env(safe-area-inset-right));">
         <a
           routerLink="/baixar"
           class="bg-white/90 hover:bg-white text-green-800 font-bold px-4 py-2.5 rounded-full shadow-lg border border-green-200 text-sm flex items-center gap-2 transition whitespace-nowrap"
